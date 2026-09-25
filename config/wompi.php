@@ -263,6 +263,83 @@ final class WompiClient
             && ($host === 'wompi.sv' || str_ends_with($host, '.wompi.sv'));
     }
 
+    // ---- verificación por API (no depende del webhook) -------------------
+
+    /**
+     * GET /EnlacePago/{id}: estado real del enlace y de su transacción. Es la fuente de verdad para
+     * confirmar un pago aunque el webhook no llegue o llegue sin firma verificable.
+     *
+     * @return array<mixed>
+     * @throws WompiException
+     */
+    public function getPaymentLink(int $linkId): array
+    {
+        $send = fn (string $token): array => ($this->transport)('GET', $this->apiUrl . '/EnlacePago/' . $linkId, [
+            'Authorization: Bearer ' . $token,
+            'Accept: application/json',
+        ], null);
+
+        [$status, $body] = $send($this->accessToken());
+        if ($status === 401) {
+            [$status, $body] = $send($this->accessToken(true));
+        }
+        $data = json_decode($body, true);
+        if ($status < 200 || $status >= 300 || !is_array($data)) {
+            throw new WompiException("Wompi no devolvió el enlace $linkId (HTTP $status).");
+        }
+        return $data;
+    }
+
+    /**
+     * Interpreta la respuesta de GET /EnlacePago/{id}. Claves sin distinguir mayúsculas (la API mezcla
+     * camelCase y PascalCase). Aprobado = transaccionCompra.esAprobada === true y resultado 0 (aprobada).
+     *
+     * @param  array<mixed> $link
+     * @return array{approved:bool, amount_cents:?int, transaction_id:string, productive:bool}
+     */
+    public static function parseLinkStatus(array $link): array
+    {
+        $tx = self::pick($link, 'transaccionCompra');
+        if (!is_array($tx) || self::pick($tx, 'esAprobada') !== true) {
+            $tx = null;
+            $all = self::pick($link, 'transacciones');
+            foreach (is_array($all) ? $all : [] as $cand) {
+                if (is_array($cand) && self::pick($cand, 'esAprobada') === true) {
+                    $tx = $cand;
+                    break;
+                }
+            }
+        }
+        $none = ['approved' => false, 'amount_cents' => null, 'transaction_id' => '', 'productive' => false];
+        if ($tx === null) {
+            return $none;
+        }
+        $result = self::pick($tx, 'resultadoTransaccion');
+        if ($result !== null && $result !== 0 && $result !== '0' && $result !== 'ExitosaAprobada') {
+            return $none;   // esAprobada sin resultado 0: ante la duda, no se concede nada
+        }
+        $amount = self::pick($tx, 'monto');
+        $id = self::pick($tx, 'idTransaccion');
+        $productive = self::pick($link, 'estaProductivo') === true || self::pick($tx, 'esReal') === true;
+        return [
+            'approved'       => true,
+            'amount_cents'   => is_numeric($amount) ? (int) round(((float) $amount) * 100) : null,
+            'transaction_id' => is_string($id) ? $id : '',
+            'productive'     => $productive,
+        ];
+    }
+
+    /** @param array<mixed> $a */
+    private static function pick(array $a, string $key): mixed
+    {
+        foreach ($a as $k => $v) {
+            if (is_string($k) && strcasecmp($k, $key) === 0) {
+                return $v;
+            }
+        }
+        return null;
+    }
+
     // ---- webhook ---------------------------------------------------------
 
     /**

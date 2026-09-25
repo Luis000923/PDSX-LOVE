@@ -10,6 +10,9 @@ require __DIR__ . '/../src/bootstrap.php';
  */
 $user = current_user();
 $uid  = $user !== null ? (int) $user['id'] : 0;
+if ($user !== null) {
+    Payments::reconcileAndReload(db(), $uid);   // pago hecho pero webhook sin llegar: se confirma con la API de Wompi
+}
 $tier = $user !== null ? Access::userTier($user) : null;
 
 $lastMembership = null;
@@ -66,7 +69,7 @@ page_start('Tienda', 'max-w-5xl');
   <p class="mt-1 text-sm text-slate-600">1 dólar = 10 monedas. Pago único, sin suscripción. Cuanto más recargas, mayor el bono.
     <?php if ($tierPct > 0): ?>Tu plan <strong><?= e((string) $tier['name']) ?></strong> suma <strong>+<?= $tierPct ?> %</strong> a cada paquete.
     <?php else: ?>Con Pareja o Eterno se suma un % extra a cada paquete.<?php endif; ?></p>
-  <?php if ($lastCoins === 'PENDING'): ?><p role="status" class="mt-4 rounded-xl bg-amber-50 text-amber-800 text-sm px-4 py-3">Estamos confirmando tu recarga… actualiza en unos segundos.</p><?php endif; ?>
+  <?php if ($lastCoins === 'PENDING'): ?><p role="status" class="mt-4 rounded-xl bg-amber-50 text-amber-800 text-sm px-4 py-3">Estamos confirmando tu recarga… se actualizará sola en unos segundos.</p><?= pending_payment_refresh() ?><?php endif; ?>
 
   <div class="mt-6 grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
     <?php foreach (Coins::PACKS_CENTS as $cents):

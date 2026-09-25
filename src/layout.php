@@ -79,6 +79,13 @@ function empty_state(string $kind, string $title, string $text, ?string $href = 
         . '</div>';
 }
 
+/** Recarga sola la página (hasta 8 veces, cada 5 s) mientras un pago sigue "confirmándose"; cada carga vuelve a preguntar a Wompi. */
+function pending_payment_refresh(): string
+{
+    return '<script nonce="' . e(csp_nonce()) . '">(function(){var k="lp_pay_refresh",n=+sessionStorage.getItem(k)||0;if(n>=8){sessionStorage.removeItem(k);return;}'
+         . 'sessionStorage.setItem(k,n+1);setTimeout(function(){location.reload()},5000);})();</script>';
+}
+
 /** Pantalla de espera mientras se crea el enlace de pago de Wompi (frases rotativas; se activa al enviar cualquier form a checkout_wompi.php). */
 function payment_wait_overlay(): string
 {
@@ -234,7 +241,7 @@ function premium_offer(?array $user, ?string $lastPayment = null, bool $codeOpen
     }
 
     if ($lastPayment === 'PENDING') {
-        echo '<p role="status" class="mt-3 rounded-xl bg-amber-50 text-amber-800 text-sm px-3 py-2">Estamos confirmando tu pago… recarga en unos segundos.</p>';
+        echo '<p role="status" class="mt-3 rounded-xl bg-amber-50 text-amber-800 text-sm px-3 py-2">Estamos confirmando tu pago… se actualizará solo en unos segundos.</p>' . pending_payment_refresh();
     } elseif (in_array($lastPayment, ['DECLINED', 'ERROR', 'VOIDED'], true)) {
         echo '<p role="alert" class="mt-3 rounded-xl bg-rose-50 text-rose-700 text-sm px-3 py-2">Tu último pago no se completó. Puedes intentarlo de nuevo.</p>';
     }
