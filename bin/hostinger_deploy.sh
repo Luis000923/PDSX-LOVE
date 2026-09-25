@@ -18,10 +18,13 @@ echo "Sincronizando la aplicación desde origin/main..."
 git sparse-checkout disable 2>/dev/null || true
 git fetch --prune origin main
 git reset --hard origin/main
-git clean -fd -e .env -e storage/ -e public/uploads/ -e public/assets/thumbs/
+git clean -fd -e .env -e love -e storage/ -e public/uploads/ -e public/assets/thumbs/
 
 mkdir -p storage/user_html storage/user_templates public/uploads public/assets/thumbs
 chmod 600 .env
+
+# La app vive en pdsx.org/love: enlace a public/ (no está en git; se recrea siempre).
+ln -sfn public love
 
 if command -v composer >/dev/null 2>&1; then
     composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
