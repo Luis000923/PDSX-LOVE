@@ -55,7 +55,7 @@ $sections = [
           <li>Tu HTML se sirve <strong>aislado</strong>: no tiene acceso a tu sesión, cookies ni datos de tu cuenta.</li>
           <li>El HTML y sus recursos se eliminan al borrar la página o la cuenta; el registro de subidas (hash, tamaño, fecha) se elimina con la cuenta.</li>
           <li>Tus plantillas subidas son <strong>privadas</strong>: mientras lo sean, solo se usan para servirte tus páginas.</li>
-          <li>Si <strong>autorizas su publicación</strong> con «Publicar en la Galería», el contenido de esa plantilla pasa a ser visible para otros usuarios; por eso <strong>no debe contener datos personales</strong> ni contenido de terceros. Ver <a href="' . e(url('terms.php#html-propio')) . '">HTML propio y fotos de los usuarios</a>.</li>
+          <li>Si <strong>autorizas su publicación</strong> con el botón «Publicar en la Galería» de esa página, el contenido de esa plantilla pasa a ser visible para otros usuarios; por eso <strong>no debe contener datos personales</strong> ni contenido de terceros. Ver <a href="' . e(url('terms.php#html-propio')) . '">HTML propio y fotos de los usuarios</a>.</li>
         </ul>'],
 
     'programas' => ['Rankings, premios y programa de creadores', "

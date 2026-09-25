@@ -192,7 +192,7 @@ page_start('Mi perfil', 'max-w-4xl');
     <section class="<?= $card ?>" aria-labelledby="h-crea">
       <h2 id="h-crea" class="font-semibold mb-1 flex items-center gap-2"><?= $ico('ico-heart') ?>Programa de creadores</h2>
       <p class="text-sm text-slate-600">Publica tus plantillas en la Galería y gana monedas cuando otras personas las usen.<?= $cTot['paid'] + $cTot['pending'] > 0 ? ' Has ganado <strong>' . (int) ($cTot['paid'] + $cTot['pending']) . ' monedas</strong>.' : '' ?></p>
-      <a class="<?= $link ?>" href="<?= e(url('creator.php')) ?>">Mis plantillas públicas<?= $ico('ico-arrow-right', 'h-4 w-4') ?></a>
+      <a class="<?= $link ?>" href="<?= e(url('upload_html.php')) ?>">Subir mi plantilla<?= $ico('ico-arrow-right', 'h-4 w-4') ?></a> · <a class="<?= $link ?>" href="<?= e(url('creator.php')) ?>">Mis plantillas públicas<?= $ico('ico-arrow-right', 'h-4 w-4') ?></a>
     </section>
 
     <section class="<?= $card ?>" aria-labelledby="h-priv">

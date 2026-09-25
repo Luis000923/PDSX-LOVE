@@ -33,7 +33,7 @@ page_start('Colaboradores destacados', 'max-w-3xl');
         <li class="py-3 flex items-center gap-3">
           <span class="w-9 shrink-0 text-center text-sm font-bold text-slate-500">#<?= $i + 1 ?></span>
           <span class="min-w-0 flex-1">
-            <span class="block truncate font-semibold"><?= e($r['alias']) ?></span>
+            <span class="block break-words font-semibold"><?= e($r['alias']) ?></span>
             <?php if ($r['badges']): ?><span class="mt-1 flex gap-1"><?php foreach ($r['badges'] as $b): ?><?= Awards::badgeImg($b, 20) ?><?php endforeach; ?></span><?php endif; ?>
           </span>
           <span class="shrink-0 text-right text-xs text-slate-600"><strong class="block text-base text-rose-700"><?= (int) $r['successful'] ?> exitosa<?= $r['successful'] === 1 ? '' : 's' ?></strong><?= (int) $r['uses'] ?> usos · <?= (int) $r['templates'] ?> plantilla<?= $r['templates'] === 1 ? '' : 's' ?></span>

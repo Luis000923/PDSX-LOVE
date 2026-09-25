@@ -39,6 +39,19 @@ services:
       PREMIUM_PRICE_USD: ${PREMIUM_PRICE_USD:-4.99}
       LEGAL_ENTITY: ${LEGAL_ENTITY:-PDSX}
       LEGAL_EMAIL: ${LEGAL_EMAIL:-}
+      MAIL_SUPPORT_EMAIL: ${MAIL_SUPPORT_EMAIL:-}
+      MAIL_FROM_EMAIL: ${MAIL_FROM_EMAIL:-}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-PDSX}
+      SMTP_HOST: ${SMTP_HOST:-smtp.hostinger.com}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_ENCRYPTION: ${SMTP_ENCRYPTION:-ssl}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      IMAP_HOST: ${IMAP_HOST:-imap.hostinger.com}
+      IMAP_PORT: ${IMAP_PORT:-993}
+      IMAP_ENCRYPTION: ${IMAP_ENCRYPTION:-ssl}
+      IMAP_USERNAME: ${IMAP_USERNAME:-}
+      IMAP_PASSWORD: ${IMAP_PASSWORD:-}
       # Opcional: simulador local (python3 tests/mock_wompi.py 9090). Vacío = API real de Wompi.
       WOMPI_TOKEN_URL: ${WOMPI_TOKEN_URL:-}
       WOMPI_API_URL: ${WOMPI_API_URL:-}

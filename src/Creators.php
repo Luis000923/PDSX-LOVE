@@ -268,6 +268,37 @@ final class Creators
         return $errs === [] ? ['html' => $r['html'], 'errors' => []] : ['html' => '', 'errors' => $errs];
     }
 
+    /**
+     * HTML de una de TUS páginas de HTML propio (privada) para publicarlo en la Galería: se relee de
+     * storage/user_html/{slug}/index.html y se vuelve a escanear como plantilla. La página privada no cambia.
+     *
+     * @return array{html:string, name:string, errors:list<string>}
+     */
+    public static function htmlFromSite(int $userId, int $siteId): array
+    {
+        require_once __DIR__ . '/HtmlScanner.php';
+        require_once __DIR__ . '/UserHtml.php';
+        $fail = static fn (string $m): array => ['html' => '', 'name' => '', 'errors' => [$m]];
+        $st = db()->prepare("SELECT s.slug, s.data, h.has_assets FROM user_sites s JOIN templates t ON t.id = s.template_id AND t.kind = 'user'
+                              JOIN user_html_sites h ON h.site_id = s.id WHERE s.id = ? AND s.user_id = ?");
+        $st->execute([$siteId, $userId]);
+        $r = $st->fetch();
+        if (!$r) {
+            return $fail('No encontramos esa página de HTML propio.');
+        }
+        if ((int) $r['has_assets'] === 1) {
+            return $fail('Esa página incluye recursos de un .zip; las plantillas públicas aún admiten un solo .html.');
+        }
+        $path = UserHtml::docPath((string) $r['slug']);
+        $html = is_file($path) && !is_link($path) ? file_get_contents($path) : false;
+        if ($html === false) {
+            return $fail('No se pudo leer el HTML de esa página.');
+        }
+        $errs = HtmlScanner::scanTemplate($html);
+        $d = json_decode((string) $r['data'], true);
+        return ['html' => $errs === [] ? $html : '', 'name' => is_array($d) ? (string) ($d['your_name'] ?? '') : '', 'errors' => $errs];
+    }
+
     /** Alias válido del usuario (users.display_name) o null. */
     public static function alias(int $userId): ?string
     {

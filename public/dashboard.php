@@ -8,6 +8,16 @@ $pdo  = db();
 // Renovar / borrar sitio (POST + CSRF + comprobación de propietario en la propia consulta).
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_post();
+    if (isset($_POST['checkin'])) {
+        $r = Checkin::claim((int) $user['id']);
+        flash($r['ok'] ? '¡Check-in listo! +' . $r['coins'] . ' 🪙' : (string) $r['error']);
+        redirect('dashboard.php');
+    }
+    if (isset($_POST['open_chest'])) {
+        $r = Chests::open((int) $user['id'], (int) $_POST['open_chest']);
+        flash($r['ok'] ? '🎁 ¡Cofre abierto! +' . $r['coins'] . ' 🪙 por tu fidelidad.' : (string) $r['error']);
+        redirect('dashboard.php');
+    }
     if (isset($_POST['renew'])) {
         $err = Sites::renew($user, (int) $_POST['renew']);
         flash($err ?? 'Página renovada.');
@@ -26,7 +36,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect('dashboard.php');
 }
 
-$st = $pdo->prepare('SELECT s.id, s.slug, s.data, s.expires_at, t.name, t.price_coins, t.membership_unlocks FROM user_sites s JOIN templates t ON t.id = s.template_id WHERE s.user_id = ? ORDER BY s.id DESC');
+$chests = Chests::available((int) $user['id']);
+$canCheckin = Checkin::canClaim((int) $user['id']);
+$refCode = Referrals::codeFor((int) $user['id']);
+$refStats = Referrals::stats((int) $user['id']);
+$refLink = url('register.php?ref=' . $refCode);
+$st = $pdo->prepare('SELECT s.id, s.slug, s.data, s.expires_at, t.name, t.kind, t.price_coins, t.membership_unlocks FROM user_sites s JOIN templates t ON t.id = s.template_id WHERE s.user_id = ? ORDER BY s.id DESC');
 $st->execute([$user['id']]);
 $sites = $st->fetchAll();
 
@@ -53,6 +68,7 @@ $off = 'inline-flex items-center justify-center gap-2 min-h-[44px] px-3 rounded-
 <section class="mt-2 rounded-2xl bg-white border border-rose-100 p-5 flex items-center gap-6">
   <div class="flex-1 min-w-0">
     <h1 class="text-2xl font-bold">Mis páginas</h1>
+    <a class="mt-3 inline-flex items-center justify-center min-h-[44px] px-6 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-sm" href="<?= e(url('upload_html.php')) ?>">Subir mi plantilla</a>
     <p class="mt-1 text-sm text-slate-600"><?= $tier ? 'Plan ' . e((string) $tier['name']) : 'Plan gratuito' ?> · <?= $isMonth ? $pUsed . ' de ' . $pMax . ' este mes' : $pUsed . '/' . $pMax . ' activas' ?></p>
     <?php if ($isMonth && $usage['remaining'] <= 0): ?><p role="status" class="mt-1 text-sm font-semibold text-rose-800">Usaste tus <?= $pMax ?> páginas gratuitas de este mes. Se reinician el <?= e(Access::monthResetLabel($usage['resets_at'])) ?>.</p><?php endif; ?>
     <?php if ($tier && $planExpiryTxt !== ''): ?><p class="mt-1 text-sm <?= $planSoon ? 'font-semibold text-amber-800' : 'text-slate-600' ?>">Tu plan <?= e($planExpiryTxt) ?></p><?php endif; ?>
@@ -60,6 +76,23 @@ $off = 'inline-flex items-center justify-center gap-2 min-h-[44px] px-3 rounded-
     <p class="mt-3 text-sm"><a class="inline-flex items-center min-h-[44px] font-semibold text-rose-700 underline underline-offset-2" href="<?= e(url('tienda.php#monedas')) ?>">Saldo: <?= Coins::balance((int) $user['id']) ?> 🪙 · Recargar</a></p>
   </div>
   <img class="hidden md:block" src="<?= e(url('assets/img/paginas/hero-paginas.svg')) ?>" alt="" width="320" height="200" loading="lazy">
+</section>
+
+<?php foreach ($chests as $c): ?>
+<form method="post" role="status" class="mt-4 flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"><?= csrf_field() ?>
+  <span>🎁 <strong>¡Cofre de aniversario disponible!</strong> Tu página cumplió <?= e(Chests::label((string) $c['milestone'])) ?>: ábrelo y llévate <?= (int) $c['coins'] ?> 🪙.</span>
+  <button name="open_chest" value="<?= (int) $c['id'] ?>" class="shrink-0 min-h-[44px] px-4 rounded-xl bg-amber-600 text-white font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500">Abrir</button>
+</form>
+<?php endforeach; ?>
+<section class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+  <form method="post" class="rounded-xl border border-rose-100 bg-white px-4 py-3 text-sm flex items-center justify-between gap-3"><?= csrf_field() ?>
+    <span><strong>Check-in diario</strong><br><span class="text-slate-600"><?= $canCheckin ? 'Reclama ' . Checkin::coins() . ' 🪙 gratis hoy.' : 'Ya reclamaste hoy. Vuelve mañana.' ?></span></span>
+    <button name="checkin" value="1" <?= $canCheckin ? '' : 'disabled aria-disabled="true"' ?> class="shrink-0 min-h-[44px] px-4 rounded-xl font-semibold <?= $canCheckin ? 'bg-rose-600 text-white' : 'bg-slate-100 text-slate-500 cursor-not-allowed' ?> focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500">Reclamar</button>
+  </form>
+  <div class="rounded-xl border border-rose-100 bg-white px-4 py-3 text-sm">
+    <strong>Invita y gana</strong> · <?= Referrals::pct() ?> % en monedas cuando tu invitado haga su primera compra.
+    <p class="mt-1 text-slate-600 break-all"><button type="button" class="font-semibold text-rose-700 underline min-h-[44px]" data-copy="<?= e($refLink) ?>"><span data-copy-label aria-live="polite">Copiar mi enlace</span></button> · <?= $refStats['invited'] ?> invitados · <?= $refStats['coins'] ?> 🪙 ganadas</p>
+  </div>
 </section>
 
 <div class="mt-4 flex flex-col sm:flex-row gap-3 sm:items-center">
@@ -112,6 +145,7 @@ $off = 'inline-flex items-center justify-center gap-2 min-h-[44px] px-3 rounded-
           <button type="button" class="<?= $act ?>" data-copy="<?= e($link) ?>"><?= $ico('ico-copy') ?><span data-copy-label aria-live="polite">Copiar enlace</span></button>
           <a class="<?= $act ?>" href="<?= e(url('download.php?id=' . (int) $s['id'])) ?>"><?= $ico('ico-download') ?>Descargar HTML</a>
           <a class="<?= $act ?>" href="<?= e($link) ?>" target="_blank" rel="noopener"><?= $ico('ico-external') ?>Abrir<span class="sr-only"> (nueva pestaña)</span></a>
+          <?php if ($s['kind'] === 'user'): ?><a class="<?= $act ?> col-span-2" href="<?= e(url('upload_html.php?modo=publica&desde=' . (int) $s['id'])) ?>">Publicar en la Galería</a><?php endif; ?>
         <?php endif; ?>
         <?php if ($expired): ?>
           <form method="post" class="contents"><?= csrf_field() ?>

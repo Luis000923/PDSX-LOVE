@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/Awards.php';
+require_once __DIR__ . '/Referrals.php';
 
 /**
  * Ciclo de vida de un pago: cumplimiento idempotente (plan, monedas, plantilla, cupón),
@@ -50,6 +51,7 @@ final class Payments
                     // Hitos de gasto acumulado (top de donadores): misma transacción; un fallo aquí nunca revierte el pago.
                     if ((int) $pay['amount_in_cents'] > 0) {
                         Awards::onPaymentFulfilled($pdo, (int) $pay['user_id']);
+                        Referrals::onPaymentFulfilled($pdo, $pay);   // comisión al referente en la 1.ª compra real
                     }
                     $res['ok'] = true;
                 }

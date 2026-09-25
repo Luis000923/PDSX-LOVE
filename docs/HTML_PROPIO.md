@@ -55,3 +55,10 @@ ni deja archivos. La página también consume el cupo de páginas y la vigencia 
 `admin/pages.php`: insignia «HTML propio» y enlace «Ver documento aislado» (`/c/{slug}/f`; el envoltorio es `/c/{slug}`). Eliminar la página (o suspender la cuenta)
 borra el HTML y los recursos (`Sites::purgeFiles`). El libro `html_uploads` (sha256, bytes, fecha) se conserva con la cuenta.
 Nota: la plantilla oculta `html-propio` está `is_active=1`; `create.php`, `preview.php` y `download.php` no la filtran por `kind` (no son de este módulo).
+
+## Fotos en el HTML propio (privado) y flujo único
+
+- `public/upload_html.php` es ahora el único punto de entrada («Subir mi plantilla»): elige privada (cupo mensual, `html_uploads`) o pública (revisión, ver `docs/CREADORES.md`).
+- En privado puedes subir hasta 12 fotos en la misma petición (procesadas con `ImageStore` a WebP y guardadas en `site_images`). En tu HTML usa `{{img_foto_1}}`, `{{img_foto_2}}`…, `{{img_count}}` y `{{#if img_foto_1}}…{{/if}}` / `{{#unless …}}`.
+- `frame.php` sustituye esos marcadores con `UserHtml::withPhotos` (mismo motor `Template::renderString`; `your_name` = nombre de la página, los demás campos vacíos) **solo si el HTML contiene alguno de ellos**; sin marcadores el documento se sirve idéntico. Las URLs son siempre `uploads/sites/{slug}/{16hex}.webp` (validadas por `TemplateImages::urlFor`); un marcador con nombre raro no se sustituye y nunca produce rutas fuera de esa carpeta.
+- «Publicar en la Galería» (en Mis páginas) parte de una página de HTML propio sin .zip y crea una plantilla pública `pending` independiente.

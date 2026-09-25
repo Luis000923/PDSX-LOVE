@@ -349,8 +349,23 @@ final class UserHtml
         }
     }
 
+    /**
+     * Sustituye {{img_<clave>}}, {{img_count}} y {{#if img_x}}…{{/if}} por las fotos de la página (URLs generadas por el servidor:
+     * siempre uploads/sites/{slug}/{16hex}.webp). Solo actúa si el HTML trae alguno de esos marcadores; sin ellos el documento
+     * se devuelve idéntico. Usa el mismo motor que las plantillas, con los otros campos vacíos y your_name = nombre de la página.
+     *
+     * @param array<string,string> $images clave => URL
+     */
+    public static function withPhotos(string $html, array $images, string $name): string
+    {
+        if (preg_match('/\{\{\s*(?:img_\w+|#(?:if|unless)\s+img_\w+)\s*\}\}/', $html) !== 1) {
+            return $html;
+        }
+        return Template::renderString($html, ['your_name' => $name, 'partner_name' => '', 'start_date' => '', 'message' => ''], ['images' => $images]);
+    }
+
     /** Documento tal como se sirve (con <base> del servidor si hay recursos); null si no existe. */
-    public static function document(string $slug, bool $hasAssets): ?string
+    public static function document(string $slug, bool $hasAssets, ?array $images = null, string $name = ''): ?string
     {
         if (preg_match('/^[a-z0-9]{6,12}$/D', $slug) !== 1) {
             return null;
@@ -363,6 +378,7 @@ final class UserHtml
         if ($html === false) {
             return null;
         }
+        $html = self::withPhotos($html, $images ?? [], $name);
         return $hasAssets ? self::injectBase($html, url('uploads/sites/' . $slug . '/a/')) : $html;
     }
 

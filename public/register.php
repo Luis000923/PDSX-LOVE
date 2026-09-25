@@ -7,6 +7,8 @@ if (current_user()) {
 }
 
 $error = null;
+// Código de quien te invitó: llega en el enlace (?ref=) y viaja en un campo oculto; solo se acepta con formato válido.
+$refCode = Referrals::normalize((string) ($_POST['ref'] ?? $_GET['ref'] ?? ''));
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_verify();
     $email = strtolower(trim((string) ($_POST['email'] ?? '')));
@@ -33,6 +35,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $st = $pdo->prepare('INSERT INTO users (email, password_hash, is_admin, display_name, show_in_rankings) VALUES (?, ?, ?, ?, 1)');
             $st->execute([$email, password_hash($pass, PASSWORD_DEFAULT), $first ? 1 : 0, $aliasIn['value']]);
             $id = (int) $pdo->lastInsertId();
+            Referrals::codeFor($id);
+            if ($refCode !== '') {
+                Referrals::attach($pdo, $id, $refCode);   // código desconocido: se ignora sin avisar
+            }
             $pdo->commit();
             login_user($id);
             redirect(auth_next('create.php'));
@@ -56,6 +62,7 @@ page_start('Crear cuenta');
 <?php if ($error): ?><p class="mb-4 text-sm text-rose-700"><?= e($error) ?></p><?php endif; ?>
 <form method="post" class="space-y-4" autocomplete="on">
   <?= csrf_field() ?>
+  <?php if ($refCode !== ''): ?><input type="hidden" name="ref" value="<?= e($refCode) ?>"><p class="text-sm text-emerald-800">Te invitó alguien de LovePages 💌</p><?php endif; ?>
   <input class="<?= INPUT_CLS ?>" type="email" name="email" placeholder="Correo" required maxlength="254" autocomplete="email">
   <input class="<?= INPUT_CLS ?>" type="password" name="password" placeholder="Contraseña (mín. 8)" required minlength="8" maxlength="72" autocomplete="new-password">
   <div>

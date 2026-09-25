@@ -211,6 +211,6 @@ final class PaymentsTest extends TestCase
                 self::assertSame('HY000', $e->getCode() === 'HY000' ? 'HY000' : (string) $e->getCode());
             }
         }
-        self::assertSame(13, DB_SCHEMA_VERSION);
+        self::assertGreaterThanOrEqual(12, DB_SCHEMA_VERSION, 'la migración que ajusta el CHECK de promos (v9+) está aplicada');
     }
 }

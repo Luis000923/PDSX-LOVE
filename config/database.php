@@ -11,7 +11,7 @@ declare(strict_types=1);
  */
 
 /** Versión de esquema esperada por el código (tabla `schema_version`). */
-const DB_SCHEMA_VERSION = 13;
+const DB_SCHEMA_VERSION = 14;
 
 /** Nombre del bloqueo consultivo que serializa las migraciones entre procesos. */
 const DB_MIGRATION_LOCK = 'lovepages_schema_migration';
@@ -117,6 +117,7 @@ function db_migrate(PDO $pdo): void
         db_migrate_v11($pdo);
         db_migrate_v12($pdo);
         db_migrate_v13($pdo);
+        db_migrate_v14($pdo);
 
         $pdo->exec('CREATE TABLE IF NOT EXISTS schema_version (
             version    INT      NOT NULL PRIMARY KEY,
@@ -569,6 +570,65 @@ function db_migrate_v13(PDO $pdo): void
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
     $launch = (new DateTimeImmutable('now', new DateTimeZone('America/El_Salvador')))->format('Y-m');
     $pdo->prepare("INSERT IGNORE INTO settings (`key`, `value`) VALUES ('creators_launch_month', ?)")->execute([$launch]);
+}
+
+/**
+ * v14: referidos (código propio + quién invitó), check-in diario (última fecha reclamada) y cofres de aniversario.
+ * `referral_rewards.referred_id` es UNIQUE: la comisión por primera compra solo puede existir una vez por referido.
+ */
+function db_migrate_v14(PDO $pdo): void
+{
+    $cols = [
+        'referral_code'     => 'VARCHAR(12) NULL',
+        'referred_by'       => 'INT NULL',
+        'last_checkin_date' => 'DATE NULL',
+    ];
+    foreach ($cols as $c => $def) {
+        if (!db_column_exists($pdo, 'users', $c)) {
+            $pdo->exec("ALTER TABLE users ADD COLUMN `$c` $def");
+        }
+    }
+    $hasIdx = static function (string $name) use ($pdo): bool {
+        $st = $pdo->prepare("SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND INDEX_NAME = ?");
+        $st->execute([$name]);
+        return (int) $st->fetchColumn() > 0;
+    };
+    if (!$hasIdx('uq_users_referral_code')) {
+        $pdo->exec('ALTER TABLE users ADD UNIQUE KEY uq_users_referral_code (referral_code)');
+    }
+    if (!$hasIdx('idx_users_referred_by')) {
+        $pdo->exec('ALTER TABLE users ADD KEY idx_users_referred_by (referred_by)');
+    }
+    $st = $pdo->prepare("SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND CONSTRAINT_NAME = 'fk_users_referred_by'");
+    $st->execute();
+    if ((int) $st->fetchColumn() === 0) {
+        $pdo->exec('ALTER TABLE users ADD CONSTRAINT fk_users_referred_by FOREIGN KEY (referred_by) REFERENCES users(id) ON DELETE SET NULL');
+    }
+    $pdo->exec("CREATE TABLE IF NOT EXISTS referral_rewards (
+        id          INT AUTO_INCREMENT PRIMARY KEY,
+        referrer_id INT      NOT NULL,
+        referred_id INT      NOT NULL,
+        payment_id  INT      NULL,
+        coins       INT      NOT NULL,
+        created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_referral_referred (referred_id),
+        KEY idx_referral_referrer (referrer_id, id),
+        CONSTRAINT fk_referral_referrer FOREIGN KEY (referrer_id) REFERENCES users(id) ON DELETE CASCADE,
+        CONSTRAINT fk_referral_referred FOREIGN KEY (referred_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS anniversary_chests (
+        id          INT AUTO_INCREMENT PRIMARY KEY,
+        user_id     INT         NOT NULL,
+        site_id     INT         NOT NULL,
+        milestone   VARCHAR(8)  NOT NULL,
+        coins       INT         NOT NULL,
+        created_at  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        opened_at   DATETIME    NULL,
+        UNIQUE KEY uq_chest_site_milestone (site_id, milestone),
+        KEY idx_chest_user (user_id, opened_at),
+        CONSTRAINT fk_chest_user FOREIGN KEY (user_id) REFERENCES users(id)      ON DELETE CASCADE,
+        CONSTRAINT fk_chest_site FOREIGN KEY (site_id) REFERENCES user_sites(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 }
 
 /** ¿Existe la columna en la base actual? (para ALTER TABLE idempotentes) */

@@ -29,6 +29,8 @@ final class Admin
         'announcement_enabled' => '0',   // aviso global en la app
         'announcement_text'    => '',
         'premium_price_usd'    => '',    // vacío = usar PREMIUM_PRICE_USD del .env (ej. 4.99)
+        'referral_pct'         => '',    // % de monedas que gana quien invita en la 1.ª compra del referido; vacío = Referrals::DEFAULT_PCT
+        'checkin_coins'        => '',    // monedas por check-in diario; vacío = Checkin::DEFAULT_COINS
         'alias_change_cost'    => '',    // monedas que cuesta CAMBIAR el alias público; vacío = Ranking::DEFAULT_ALIAS_CHANGE_COST
     ];
 

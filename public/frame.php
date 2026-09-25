@@ -56,7 +56,8 @@ if ($site['kind'] === 'utpl') {
 } elseif ($site['has_assets'] === null) {
     $html = null;
 } else {
-    $html = UserHtml::document($slug, (int) $site['has_assets'] === 1);
+    $d = json_decode((string) $site['data'], true);
+    $html = UserHtml::document($slug, (int) $site['has_assets'] === 1, TemplateImages::forSite((int) $site['site_id'], $slug), is_array($d) ? (string) ($d['your_name'] ?? '') : '');
 }
 if ($html === null) {
     error_log("HTML propio sin archivo en la página $slug");

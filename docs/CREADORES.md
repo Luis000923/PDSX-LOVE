@@ -17,7 +17,7 @@ colaboradores destacados y premios automáticos. Código: `src/Creators.php` (co
 
 ## Flujo
 
-1. `public/creator_upload.php` («Publicar en la Galería», solo logueados): nombre ≤60, descripción ≤200, categoría, nº de fotos 0–12
+1. `public/upload_html.php` («Subir mi plantilla», flujo único; `creator_upload.php` redirige a `?modo=publica`). En «Mis páginas», el botón «Publicar en la Galería» de una página de HTML propio abre `?modo=publica&desde={id}` con su HTML precargado (`Creators::htmlFromSite`: se relee de `storage/user_html`, se vuelve a escanear como plantilla; la página privada no cambia y no se toca `html_uploads`). Modo público: nombre ≤60, descripción ≤200, categoría, nº de fotos 0–12
    (`image_spec {"repeat":{"prefix":"foto","label":"Foto {n}","min":0,"max":N}}`), miniatura obligatoria (`ImageStore::thumbnail`: WebP 800×480, recorte
    centrado, `public/assets/thumbs/`), precio en monedas (config), casilla «Incluir en el cupo mensual de membresías» (`is_premium=1`+`membership_unlocks=1`;
    sin marcar: solo monedas) y casilla de conformidad. Alias: `users.display_name`; si falta se pide y se guarda **sin** activar `show_in_rankings`.
@@ -93,3 +93,7 @@ conteos e insignias; nunca correos. Suspendidos excluidos. Estado vacío amable.
 ## Despliegue
 
 Copiar juntos `config/database.php` y `database/schema.sql`; el volumen `storage` (ya montado) guarda `storage/user_templates`. Añadir a cron `bin/settle_creators.php`. Sin cambios de URL existentes.
+
+## Flujo unificado de subida
+
+Paso 1 archivo, paso 2 privada/pública (tarjetas-radio; los grupos de campos se alternan con CSS `:has()`, sin JS), paso 3 fotos (nº 0–12). Privada: las fotos reales se suben en la misma petición (`TemplateImages::stage` + `committer` dentro de `Sites::create`). Pública: el nº solo define `image_spec` (`{"repeat":{"prefix":"foto",...}}`, claves `foto_1`…`foto_N`) y los compradores suben las suyas en `create.php`. Marcadores: `{{img_foto_1}}`, `{{img_count}}`, `{{#if img_foto_1}}…{{/if}}`.

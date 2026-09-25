@@ -241,4 +241,22 @@ final class CreatorsTest extends CreatorsTestCase
         self::assertNull(Creators::html('u-zz'));
         self::assertNull(Creators::reviewHtml('..'));
     }
+
+    public function testSandboxHeadersNeverAllowSameOriginAndFrameUsesThem(): void
+    {
+        $src = (string) file_get_contents(dirname(__DIR__, 2) . '/src/UserHtml.php');
+        self::assertStringContainsString("Content-Security-Policy: sandbox allow-scripts; default-src 'none'", $src);
+        preg_match('/header\\(\"Content-Security-Policy: sandbox[^\\n]*/', $src, $m);
+        self::assertNotEmpty($m);
+        self::assertStringNotContainsString('allow-same-origin', $m[0]);
+        self::assertStringContainsString("connect-src 'none'", $src);
+        $root = dirname(__DIR__, 2);
+        foreach (['public/frame.php', 'public/preview.php', 'public/admin/creator_preview.php'] as $f) {
+            self::assertStringContainsString('UserHtml::sendSandboxHeaders()', (string) file_get_contents("$root/$f"), $f);
+            self::assertStringNotContainsString('allow-scripts allow-same-origin', (string) file_get_contents("$root/$f"), $f);
+        }
+        $view = (string) file_get_contents("$root/public/view.php");
+        self::assertStringContainsString("['user', 'utpl']", $view, 'view.php enmarca las utpl en iframe sandbox');
+        self::assertStringContainsString('sandbox="allow-scripts"', $view);
+    }
 }

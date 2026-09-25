@@ -42,7 +42,7 @@ page_start('Galería de plantillas', 'max-w-5xl');
     <h1 class="text-3xl font-bold tracking-tight">Galería de plantillas</h1>
     <p class="mt-1 text-lg font-semibold text-rose-600">Elige una plantilla y crea tu página de amor</p>
     <p class="mt-2 text-slate-600">Pruébala, personalízala y mándasela a esa persona especial.</p>
-    <p class="mt-3 text-sm text-slate-500">¿Tienes tu propio diseño? <a class="font-semibold text-rose-700 underline underline-offset-2 hover:text-rose-800" href="<?= e(url($user ? 'upload_html.php' : 'register.php')) ?>">Sube tu propio HTML</a></p>
+    <p class="mt-3 text-sm text-slate-500">¿Tienes tu propio diseño? <a class="inline-flex items-center justify-center min-h-[44px] px-6 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-sm" href="<?= e(url($user ? 'upload_html.php' : 'register.php')) ?>">Subir mi plantilla</a> <a class="ml-2 text-rose-700 underline font-semibold" href="<?= e(url('colaboradores.php')) ?>">Colaboradores destacados</a></p>
     <a href="#plantillas" class="mt-5 inline-flex items-center justify-center min-h-[44px] px-8 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-600 focus-visible:ring-offset-2">Ver plantillas</a>
   </div>
   <img src="<?= e(url('assets/img/paginas/hero-galeria.svg')) ?>" alt="" width="320" height="200" loading="lazy" class="hidden md:block justify-self-end w-full max-w-xs h-auto">
