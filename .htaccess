@@ -2,3 +2,9 @@
 <FilesMatch "^\.">
     Require all denied
 </FilesMatch>
+
+# Nada de esto debe servirse por web: solo public/ es la aplicación.
+RedirectMatch 403 ^/(vendor|bin|tests|\.github|\.opencode|\.claude|pdsx-love)(/|$)
+<FilesMatch "^(composer\.(json|lock)|phpunit\.xml|phpstan\.neon|Dockerfile|docker-compose\.yml|README.*)$">
+    Require all denied
+</FilesMatch>
