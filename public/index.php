@@ -7,6 +7,7 @@ $cat  = is_string($_GET['cat'] ?? null) && array_key_exists($_GET['cat'], Templa
 $sortKey = is_string($_GET['sort'] ?? null) && in_array($_GET['sort'], ['popular', 'new', 'price'], true) ? $_GET['sort'] : 'popular';
 $order = ['popular' => 'uses DESC, t.id DESC', 'new' => 't.id DESC', 'price' => 't.price_usd ASC, t.is_premium ASC, t.id DESC'][$sortKey];
 $q = is_string($_GET['q'] ?? null) ? mb_substr(trim($_GET['q']), 0, 50) : '';
+$onlyFree = ($_GET['free'] ?? '') === '1';
 
 $sql = 'SELECT t.id, t.slug, t.name, t.description, t.thumbnail, t.kind, t.category, t.is_premium, t.price_usd, t.price_coins, t.membership_unlocks, t.credit_alias,
                (SELECT COUNT(*) FROM user_sites s WHERE s.template_id = t.id) AS uses
@@ -20,11 +21,14 @@ if ($q !== '') {
 $st = db()->prepare($sql);
 $st->execute($params);
 $templates = $st->fetchAll();
+if ($onlyFree) {   // gratis = sin precio en USD, sin membresía y sin costo en monedas
+    $templates = array_values(array_filter($templates, static fn(array $t): bool => !Access::isPaid($t) && (int) ($t['price_coins'] ?? 0) === 0));
+}
 
 $user  = current_user();
 $owned = $user ? Access::purchasedTemplateIds((int) $user['id']) : [];
-$link  = static function (string $c, string $s, string $qq): string {
-    $qs = http_build_query(array_filter(['q' => $qq, 'cat' => $c, 'sort' => $s !== 'popular' ? $s : '']));
+$link  = static function (string $c, string $s, string $qq) use ($onlyFree): string {
+    $qs = http_build_query(array_filter(['q' => $qq, 'cat' => $c, 'sort' => $s !== 'popular' ? $s : '', 'free' => $onlyFree ? '1' : '']));
     return e(url('index.php' . ($qs !== '' ? '?' . $qs : '')));
 };
 $ico   = static fn(string $n, int $s = 20, string $cls = ''): string =>
@@ -51,6 +55,7 @@ page_start('Galería de plantillas', 'max-w-5xl');
 <section id="plantillas" class="mt-8 scroll-mt-4 space-y-3" aria-label="Buscar y filtrar">
   <form method="get" action="<?= e(url('index.php')) ?>" class="flex gap-2" role="search">
     <?php if ($cat !== ''): ?><input type="hidden" name="cat" value="<?= e($cat) ?>"><?php endif; ?>
+    <?php if ($onlyFree): ?><input type="hidden" name="free" value="1"><?php endif; ?>
     <?php if ($sortKey !== 'popular'): ?><input type="hidden" name="sort" value="<?= e($sortKey) ?>"><?php endif; ?>
     <div class="relative flex-1">
       <label for="q" class="sr-only">Buscar plantillas</label>
@@ -70,6 +75,8 @@ page_start('Galería de plantillas', 'max-w-5xl');
   </nav>
 
   <div class="flex flex-wrap items-center justify-between gap-2 text-sm">
+    <?php $qsFree = http_build_query(array_filter(['q' => $q, 'cat' => $cat, 'sort' => $sortKey !== 'popular' ? $sortKey : '', 'free' => $onlyFree ? '' : '1'])); ?>
+    <a href="<?= e(url('index.php' . ($qsFree !== '' ? '?' . $qsFree : ''))) ?>#plantillas" role="switch" aria-checked="<?= $onlyFree ? 'true' : 'false' ?>" class="<?= $chip . ($onlyFree ? $on : $off) ?>">Solo gratis</a>
     <p class="text-slate-500" aria-live="polite"><strong class="text-slate-800"><?= $n ?></strong> plantilla<?= $n === 1 ? '' : 's' ?></p>
     <nav class="flex items-center rounded-full bg-white border border-rose-100 p-0.5" aria-label="Ordenar por">
       <?php foreach (['popular' => 'Populares', 'new' => 'Nuevas', 'price' => 'Precio'] as $k => $label): ?>
@@ -99,36 +106,26 @@ page_start('Galería de plantillas', 'max-w-5xl');
       $prev  = e(url('preview.php?t=' . rawurlencode((string) $t['slug'])));
       $embedPrev = e(url('preview.php?t=' . rawurlencode((string) $t['slug']) . '&embed=1')); ?>
     <article class="group rounded-2xl bg-white border border-rose-100 overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-0.5 transition flex flex-col">
-      <a href="<?= $prev ?>" target="_blank" rel="noopener" class="relative block focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rose-600" aria-label="Vista previa de <?= e($t['name']) ?>">
-        <?php if ($t['thumbnail']): ?>
-          <img src="<?= e(url('assets/thumbs/' . $t['thumbnail'])) ?>" alt="" width="400" height="240" loading="lazy" class="w-full aspect-[5/3] object-cover">
-        <?php else: ?>
-          <img src="<?= e(url('assets/img/paginas/thumb-fallback.svg')) ?>" alt="" width="400" height="240" loading="lazy" class="w-full aspect-[5/3] object-cover">
-        <?php endif; ?>
-        <span class="absolute top-3 left-3 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold <?= $badge ?>"><?= $locked ? $ico('ico-lock', 12) : '' ?><?= e($label) ?></span>
-        <?php if ($t['kind'] === 'php'): ?><span class="absolute top-3 right-3 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold bg-indigo-100 text-indigo-800"><?= $ico('badge-interactiva', 16) ?>Interactiva</span><?php endif; ?>
-      </a>
+      <div class="relative overflow-hidden bg-rose-50 aspect-[5/3]" data-media>
+        <img src="<?= e(url($t['thumbnail'] ? 'assets/thumbs/' . $t['thumbnail'] : 'assets/img/paginas/thumb-fallback.svg')) ?>" alt="" width="400" height="240" loading="lazy" class="absolute inset-0 w-full h-full object-cover">
+        <iframe data-frame data-src="<?= $embedPrev ?>" title="Preview de <?= e($t['name']) ?>" class="absolute top-0 left-0 border-0 bg-white opacity-0 transition-opacity duration-500 origin-top-left pointer-events-none" style="width:375px;height:225px" sandbox="allow-scripts" tabindex="-1" aria-hidden="true"></iframe>
+        <a href="<?= $prev ?>" target="_blank" rel="noopener" class="absolute inset-0 z-10 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rose-600" aria-label="Abrir vista previa de <?= e($t['name']) ?> (pestaña nueva)"></a>
+        <?php if ($coins > 0): ?><span class="absolute bottom-3 left-3 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold pointer-events-none z-20 bg-white/95 text-amber-800 shadow-sm">🪙 <?= $coins ?> monedas</span><?php endif; ?>
+        <span class="absolute top-3 left-3 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold pointer-events-none z-20 <?= $badge ?>"><?= $locked ? $ico('ico-lock', 12) : '' ?><?= e($label) ?></span>
+        <?php if ($t['kind'] === 'php'): ?><span class="absolute top-3 right-3 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold pointer-events-none z-20 bg-indigo-100 text-indigo-800"><?= $ico('badge-interactiva', 16) ?>Interactiva</span><?php endif; ?>
+      </div>
       <div class="p-4 flex flex-col flex-1">
         <p class="text-xs font-semibold uppercase tracking-wide text-rose-600"><?= e(Template::CATEGORIES[$t['category']] ?? '') ?></p>
         <h2 class="mt-0.5 font-semibold text-lg leading-snug"><?= e($t['name']) ?></h2>
         <?php if ($t['kind'] === 'utpl' && $t['credit_alias']): ?><p class="text-xs text-slate-500">Por <?= e((string) $t['credit_alias']) ?></p><?php endif; ?>
         <?php if ($t['description']): ?><p class="mt-1 text-sm text-slate-600 line-clamp-2"><?= e($t['description']) ?></p><?php endif; ?>
-        <details class="mt-3 rounded-xl border border-rose-100 bg-rose-50/50 overflow-hidden group/preview">
-          <summary class="min-h-[44px] cursor-pointer list-none px-3 flex items-center justify-between gap-3 text-sm font-semibold text-rose-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-600">
-            <span class="inline-flex items-center gap-1.5"><?= $ico('ico-eye', 17) ?>Ver preview</span>
-            <span aria-hidden="true" class="transition group-open/preview:rotate-180">⌄</span>
-          </summary>
-          <div class="border-t border-rose-100 bg-white p-2">
-            <iframe src="<?= $embedPrev ?>" loading="lazy" title="Preview de <?= e($t['name']) ?>" class="block w-full aspect-[9/16] max-h-[360px] rounded-lg border-0 bg-rose-50" sandbox="allow-scripts"></iframe>
-          </div>
-        </details>
         <?php // Precio siempre visible, también en las plantillas de membresía (con su valor en monedas). ?>
         <p class="mt-2 text-sm font-semibold text-slate-900">
           <?php if ($free): ?>Gratis
           <?php elseif ($coinOnly): ?><?= $coins ?> monedas
           <?php elseif ($quota): ?><?= $coins ?> monedas <span class="font-normal text-slate-500">· gratis con el cupo de tu membresía</span>
-          <?php elseif ($cents > 0): ?>$<?= e(wompi_format_usd($cents)) ?> USD <span class="font-normal text-slate-500">· o con membresía</span>
-          <?php else: ?>Con membresía<?php endif; ?>
+          <?php elseif ($cents > 0): ?>$<?= e(wompi_format_usd($cents)) ?> USD <span class="font-normal text-slate-500">· <?= $coins > 0 ? $coins . ' monedas · ' : '' ?>o con membresía</span>
+          <?php else: ?>Con membresía<?php if ($coins > 0): ?> <span class="font-normal text-slate-500">· <?= $coins ?> monedas</span><?php endif; ?><?php endif; ?>
         </p>
         <p class="mt-1 text-xs text-slate-500"><?= (int) $t['uses'] ?> página<?= (int) $t['uses'] === 1 ? '' : 's' ?> creada<?= (int) $t['uses'] === 1 ? '' : 's' ?></p>
         <div class="mt-auto pt-4 grid grid-cols-2 gap-2">
@@ -152,4 +149,15 @@ page_start('Galería de plantillas', 'max-w-5xl');
     <a href="<?= e(url('tienda.php#membresias')) ?>" class="inline-flex items-center justify-center min-h-[44px] px-6 rounded-xl border border-rose-300 text-rose-700 font-semibold text-sm hover:bg-rose-50 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-600">Ver membresías</a>
   </aside>
 <?php endif; ?>
+<script nonce="<?= e(csp_nonce()) ?>">
+(function () {
+  var frames = document.querySelectorAll('[data-frame]');
+  function fit(f) { var w = f.parentElement.clientWidth; if (!w) return; var k = w / 375; f.style.height = (f.parentElement.clientHeight / k) + 'px'; f.style.transform = 'scale(' + k + ')'; }
+  function load(f) { fit(f); if (!f.src) { f.addEventListener('load', function () { f.classList.remove('opacity-0'); }, { once: true }); f.src = f.dataset.src; } }
+  if (window.ResizeObserver) { var ro = new ResizeObserver(function (es) { es.forEach(function (e) { fit(e.target.querySelector('[data-frame]')); }); }); document.querySelectorAll('[data-media]').forEach(function (m) { ro.observe(m); }); }
+  if (!('IntersectionObserver' in window)) { frames.forEach(load); return; }
+  var io = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { io.unobserve(e.target); load(e.target); } }); }, { rootMargin: '200px' });
+  frames.forEach(function (f) { io.observe(f); });
+})();
+</script>
 <?php page_end();
