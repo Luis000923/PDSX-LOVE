@@ -22,19 +22,24 @@ $errors = [];
 $form = [
     'name'        => (string) $tpl['name'],
     'description' => (string) $tpl['description'],
-    'price_cop'   => (string) $tpl['price_cop'],
+    'price_usd'   => number_format((float) $tpl['price_usd'], 2, '.', ''),
+    'price_coins' => (string) (int) $tpl['price_coins'],
     'is_premium'  => (string) (int) $tpl['is_premium'],
     'is_active'   => (string) (int) $tpl['is_active'],
+    'category'    => (string) $tpl['category'],
 ];
+$isPhp = ($tpl['kind'] ?? 'html') === 'php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_post();
 
     $form['name']        = trim((string) ($_POST['name'] ?? ''));
     $form['description'] = trim((string) ($_POST['description'] ?? ''));
-    $form['price_cop']   = (string) ($_POST['price_cop'] ?? '0');
+    $form['price_usd']   = (string) ($_POST['price_usd'] ?? '0');
+    $form['price_coins'] = (string) ($_POST['price_coins'] ?? '0');
     $form['is_premium']  = !empty($_POST['is_premium']) ? '1' : '0';
     $form['is_active']   = !empty($_POST['is_active']) ? '1' : '0';
+    $form['category']    = array_key_exists((string) ($_POST['category'] ?? ''), Template::CATEGORIES) ? (string) $_POST['category'] : (string) $tpl['category'];
 
     if ($form['name'] === '' || mb_strlen($form['name']) > 60) {
         $errors[] = 'El nombre es obligatorio (máximo 60 caracteres).';
@@ -42,8 +47,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (mb_strlen($form['description']) > 200) {
         $errors[] = 'La descripción no puede superar 200 caracteres.';
     }
-    if (!ctype_digit($form['price_cop']) || (int) $form['price_cop'] > 9999999) {
-        $errors[] = 'El precio debe ser un número entero de pesos (0 = gratis).';
+    $price = Admin::parsePriceUsd($form['price_usd']);
+    if ($price === null) {
+        $errors[] = 'El precio debe ser un monto en USD, hasta 999.99 con 2 decimales (0 = sin compra individual).';
+    }
+
+    $coins = filter_var($form['price_coins'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 0, 'max_range' => 100000]]);
+    if ($coins === false) {
+        $errors[] = 'El costo en monedas debe ser un entero entre 0 y 100000.';
     }
 
     // Aviso, no bloqueo: desactivar una plantilla en uso deja esas páginas en 404.
@@ -52,16 +63,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = "$inUse página(s) usan esta plantilla y dejarán de mostrarse. Marca la confirmación para continuar.";
     }
 
-    // Reemplazo del .html (opcional): se valida con el mismo rasero que una alta.
+    // Reemplazo del contenido (opcional): .html con el mismo rasero que una alta, o .zip para plantillas PHP.
     $newHtml = null;
-    $file = $_FILES['html'] ?? ['error' => UPLOAD_ERR_NO_FILE];
+    $newZip = null;
+    $file = $_FILES[$isPhp ? 'bundle' : 'html'] ?? ['error' => UPLOAD_ERR_NO_FILE];
     if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
         if ($err = Admin::uploadError($file)) {
             $errors[] = $err;
+        } elseif ($isPhp) {
+            if (strtolower(pathinfo((string) $file['name'], PATHINFO_EXTENSION)) === 'zip') {
+                $newZip = (string) $file['tmp_name'];
+            } else {
+                $errors[] = 'La plantilla PHP debe subirse como archivo .zip.';
+            }
         } else {
             $newHtml = (string) file_get_contents((string) $file['tmp_name'], false, null, 0, Admin::MAX_TEMPLATE_BYTES + 1);
             $errors = array_merge($errors, Admin::validateTemplateHtml($newHtml));
         }
+    }
+    if (!$errors && $newZip !== null) {
+        $errors = PhpTemplate::install((string) $tpl['slug'], $newZip);   // reemplazo atómico; no toca nada si falla
     }
 
     // Miniatura: reemplazo o borrado.
@@ -84,12 +105,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($newHtml !== null) {
                 Admin::writeTemplateFile((string) $tpl['file'], $newHtml);
             }
-            $pdo->prepare('UPDATE templates SET name = ?, description = ?, price_cop = ?, thumbnail = ?, is_premium = ?, is_active = ? WHERE id = ?')
+            $pdo->prepare('UPDATE templates SET name = ?, description = ?, price_usd = ?, price_coins = ?, category = ?, thumbnail = ?, is_premium = ?, is_active = ? WHERE id = ?')
                 ->execute([
-                    $form['name'], $form['description'], (int) $form['price_cop'], $thumb,
+                    $form['name'], $form['description'], (string) $price, (int) $coins, $form['category'], $thumb,
                     (int) $form['is_premium'], (int) $form['is_active'], $id,
                 ]);
-            Admin::log('template.update', $tpl['slug'] . ($newHtml !== null ? ' (html reemplazado)' : ''));
+            Admin::log('template.update', $tpl['slug'] . ($newHtml !== null ? ' (html reemplazado)' : '') . ($newZip !== null ? ' (bundle php reemplazado)' : ''));
             flash("Plantilla «{$form['name']}» actualizada.");
             redirect('admin/templates.php');
         } catch (Throwable $ex) {
@@ -100,17 +121,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $inUse   = Admin::siteCount($id);
-$path    = Admin::templateDir() . '/' . $tpl['file'];
+$path    = $isPhp ? PhpTemplate::baseDir() . '/' . $tpl['slug'] . '/index.php' : Admin::templateDir() . '/' . $tpl['file'];
 $size    = is_file($path) ? round(filesize($path) / 1024, 1) . ' KiB' : 'archivo ausente';
 
-admin_page_start('Editar plantilla', 'templates');
+admin_page_start('Editar: ' . $tpl['name'], 'templates', 'Metadatos, estado y archivos de la plantilla.', '<a href="' . e(url('admin/templates.php')) . '" class="' . ADMIN_BTN_GHOST_CLS . '">← Plantillas</a>');
 admin_errors($errors);
 ?>
-<div class="flex items-center gap-3 mb-6">
-  <a href="<?= e(url('admin/templates.php')) ?>" class="text-sm text-slate-500 hover:text-slate-800">← Plantillas</a>
-  <h1 class="text-2xl font-bold"><?= e($tpl['name']) ?></h1>
-</div>
-
 <section class="<?= ADMIN_CARD_CLS ?>">
   <p class="text-xs text-slate-500 mb-4">
     Identificador <code><?= e($tpl['slug']) ?></code> · archivo <code><?= e($tpl['file']) ?></code> (<?= e($size) ?>) ·
@@ -126,8 +142,22 @@ admin_errors($errors);
       <input id="name" name="name" class="<?= ADMIN_INPUT_CLS ?>" maxlength="60" required value="<?= e($form['name']) ?>">
     </div>
     <div>
-      <label class="block text-sm font-semibold mb-1" for="price_cop">Precio de referencia (COP)</label>
-      <input id="price_cop" name="price_cop" type="number" min="0" max="9999999" step="1" class="<?= ADMIN_INPUT_CLS ?>" value="<?= e($form['price_cop']) ?>">
+      <label class="block text-sm font-semibold mb-1" for="price_usd">Precio individual (USD)</label>
+      <input id="price_usd" name="price_usd" type="number" min="0" max="999.99" step="0.01" inputmode="decimal" class="<?= ADMIN_INPUT_CLS ?>" value="<?= e($form['price_usd']) ?>">
+      <p class="text-xs text-slate-500 mt-1">0 = solo con membresía. Mayor que 0 = también se puede comprar suelta.</p>
+    </div>
+    <div>
+      <label class="block text-sm font-semibold mb-1" for="price_coins">Costo en monedas</label>
+      <input id="price_coins" name="price_coins" type="number" min="0" max="100000" step="1" class="<?= ADMIN_INPUT_CLS ?>" value="<?= e($form['price_coins']) ?>">
+      <p class="text-xs text-slate-500 mt-1">Se descuenta al crear (y renovar) una página. 0 = gratis.</p>
+    </div>
+    <div>
+      <label class="block text-sm font-semibold mb-1" for="category">Categoría</label>
+      <select id="category" name="category" class="<?= ADMIN_INPUT_CLS ?>">
+        <?php foreach (Template::CATEGORIES as $k => $label): ?>
+          <option value="<?= e($k) ?>" <?= $form['category'] === $k ? 'selected' : '' ?>><?= e($label) ?></option>
+        <?php endforeach; ?>
+      </select>
     </div>
     <div class="sm:col-span-2">
       <label class="block text-sm font-semibold mb-1" for="description">Descripción</label>
@@ -149,8 +179,13 @@ admin_errors($errors);
     </div>
 
     <div>
-      <label class="block text-sm font-semibold mb-1" for="html">Reemplazar HTML <span class="font-normal text-slate-500">(opcional)</span></label>
-      <input id="html" name="html" type="file" accept=".html,text/html" class="<?= ADMIN_INPUT_CLS ?>">
+      <?php if ($isPhp): ?>
+        <label class="block text-sm font-semibold mb-1" for="bundle">Reemplazar carpeta PHP (.zip) <span class="font-normal text-slate-500">(opcional)</span></label>
+        <input id="bundle" name="bundle" type="file" accept=".zip,application/zip" class="<?= ADMIN_INPUT_CLS ?>">
+      <?php else: ?>
+        <label class="block text-sm font-semibold mb-1" for="html">Reemplazar HTML <span class="font-normal text-slate-500">(opcional)</span></label>
+        <input id="html" name="html" type="file" accept=".html,text/html" class="<?= ADMIN_INPUT_CLS ?>">
+      <?php endif; ?>
     </div>
     <div>
       <label class="block text-sm font-semibold mb-1" for="thumbnail">Miniatura</label>

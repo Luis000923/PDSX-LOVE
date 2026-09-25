@@ -2,3 +2,10 @@ Options -Indexes
 RewriteEngine On
 # Página pública de pareja: /c/abc12345
 RewriteRule ^c/([a-z0-9]{6,12})/?$ view.php?u=$1 [L,QSA]
+# Los assets de plantillas nunca se ejecutan (defensa en profundidad: solo se copian extensiones estáticas)
+RewriteRule ^assets/.*\.(php|phtml|phar)$ - [F,L]
+# Errores con la marca de la app (el código HTTP original se conserva; ver public/error.php)
+ErrorDocument 403 /error.php
+ErrorDocument 404 /error.php
+ErrorDocument 410 /error.php
+ErrorDocument 500 /error.php

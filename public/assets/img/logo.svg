@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 32" width="80" height="32" fill="none" role="img" aria-label="PDSX">
+  <g stroke="#0f172a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M5 9v19"/><circle cx="11.5" cy="15.5" r="6.5"/>
+    <circle cx="30" cy="15.5" r="6.5"/><path d="M36.5 3v19"/>
+    <g transform="translate(-4)"><path d="M57.5 10.5C55 8.5 47.5 8.5 47.5 12.5c0 4 10.5 2 10.5 6.5 0 4-8 4-10.5 1.5"/>
+    <path d="M63 9l12 13M75 9L63 22"/></g>
+  </g>
+  <circle cx="76" cy="21" r="2.6" fill="#f43f5e"/>
+</svg>

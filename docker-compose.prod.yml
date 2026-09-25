@@ -1,19 +1,46 @@
 # Producción: la imagen viene de GHCR (la despliega el workflow CD).
 # Requiere un archivo .env junto a este compose (ver .env.example).
+#
+# La BD es el servicio `db` (MySQL 8) de este mismo compose: en .env deja DB_HOST=db. Si prefieres un
+# MySQL gestionado/externo, apunta DB_HOST a él y elimina el servicio `db`, `depends_on` y el volumen `lovedb`.
 services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    # Sin env_file: el .env lleva el secreto de Wompi y MySQL no debe verlo. Los ${...} se interpolan desde .env.
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?DB_ROOT_PASSWORD requerida en .env}
+      MYSQL_DATABASE: ${DB_NAME:?DB_NAME requerida en .env}
+      MYSQL_USER: ${DB_USER:?DB_USER requerida en .env}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD requerida en .env}
+    # Sin `ports`: solo `web` alcanza la BD, por la red interna de compose.
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - lovedb:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
   web:
     image: ${IMAGE:?IMAGE requerida}:${TAG:-latest}
     restart: unless-stopped
+    depends_on:
+      db: { condition: service_healthy }
     ports: ["127.0.0.1:8080:80"]      # el proxy inverso (Caddy/Nginx) publica el 443
     env_file: .env
     read_only: true
     tmpfs: [/tmp, /var/run/apache2, /var/lock/apache2, /var/log/apache2]
     security_opt: ["no-new-privileges:true"]
     volumes:
-      - lovedata:/var/www/data
       - lovetemplates:/var/www/app/templates
       - lovethumbs:/var/www/app/public/assets/thumbs
+      - lovetpl:/var/www/app/public/assets/tpl
 volumes:
-  lovedata:
+  lovedb:
   lovetemplates:
   lovethumbs:
+  lovetpl:

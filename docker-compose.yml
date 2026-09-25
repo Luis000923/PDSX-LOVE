@@ -1,19 +1,54 @@
 # Desarrollo local: docker compose up --build  ->  http://localhost:8080
 services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${DB_NAME:-lovepages}
+      MYSQL_USER: ${DB_USER:-lovepages}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-lovepages}
+    ports: ["127.0.0.1:3306:3306"]      # solo loopback: para inspeccionar/depurar desde el host
+    volumes:
+      - lovedb:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
   web:
     build: .
     ports: ["8080:80"]
+    depends_on:
+      db: { condition: service_healthy }
     environment:
       APP_URL: http://localhost:8080
       APP_DEBUG: "1"
-      WOMPI_PUBLIC_KEY: ${WOMPI_PUBLIC_KEY:-pub_test_x}
-      WOMPI_INTEGRITY_SECRET: ${WOMPI_INTEGRITY_SECRET:-int_x}
-      WOMPI_EVENTS_SECRET: ${WOMPI_EVENTS_SECRET:-evt_x}
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_NAME: ${DB_NAME:-lovepages}
+      DB_USER: ${DB_USER:-lovepages}
+      DB_PASSWORD: ${DB_PASSWORD:-lovepages}
+      # Wompi El Salvador. Con el cliente/secreto vacío el botón de pago queda desactivado.
+      WOMPI_ENV: sandbox
+      WOMPI_CLIENT_ID: ${WOMPI_CLIENT_ID:-}
+      WOMPI_API_SECRET: ${WOMPI_API_SECRET:-}
+      PREMIUM_PRICE_USD: ${PREMIUM_PRICE_USD:-4.99}
+      LEGAL_ENTITY: ${LEGAL_ENTITY:-PDSX}
+      LEGAL_EMAIL: ${LEGAL_EMAIL:-}
+      # Opcional: simulador local (python3 tests/mock_wompi.py 9090). Vacío = API real de Wompi.
+      WOMPI_TOKEN_URL: ${WOMPI_TOKEN_URL:-}
+      WOMPI_API_URL: ${WOMPI_API_URL:-}
+    extra_hosts: ["host.docker.internal:host-gateway"]
     volumes:
-      - lovedata:/var/www/data
       - lovetemplates:/var/www/app/templates
       - lovethumbs:/var/www/app/public/assets/thumbs
+      - lovetpl:/var/www/app/public/assets/tpl
 volumes:
-  lovedata:
+  lovedb:
   lovetemplates:
   lovethumbs:
+  lovetpl:

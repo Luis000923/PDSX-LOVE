@@ -2,12 +2,13 @@
 # Prueba de humo del panel de administración contra una instancia RECIÉN creada
 # (sin usuarios: el primero que se registre queda como administrador).
 #
-#   docker compose down -v && docker compose up -d --build && tests/smoke_admin.sh http://localhost:8080
+#   python3 tests/mock_wompi.py 9090 &      # simulador de Wompi SV (el checkout llama a su API)
+#   docker compose down -v && docker compose up -d --build && tests/smoke_admin.sh http://localhost:8080 http://127.0.0.1:9090
 #
 # Nota: nunca se usa `curl | grep -q`. Con `pipefail`, grep cierra la tubería al primer
 # acierto y curl muere con código 23, dando falsos negativos. Siempre a variable primero.
 set -euo pipefail
-B=${1:?base url}
+B=${1:?base url}; MOCK=${2:?url del simulador de Wompi (tests/mock_wompi.py)}
 A=$(mktemp); U=$(mktemp); TPL=$(mktemp --suffix=.html); trap 'rm -f "$A" "$U" "$TPL"' EXIT
 fail(){ echo "FALLO: $*" >&2; exit 1; }
 get(){ curl -fsS -b "$1" -c "$1" "$B/$2"; }
@@ -39,7 +40,7 @@ has "$(get "$A" admin/index.php)" 'Usuarios registrados' || fail "dashboard sin 
 # --- 4. Subida de plantilla maliciosa: rechazada ----------------------------
 T=$(tok "$A" admin/templates.php)
 printf '<!doctype html><html><body><?php system($_GET["c"]); ?><img src=x onerror=alert(1)><script>alert(1)</script></body></html>' > "$TPL"
-R=$(curl -fsS -b "$A" -c "$A" -F "_csrf=$T" -F 'action=create' -F 'name=Maligna' -F 'slug=maligna' -F 'price_cop=0' -F "html=@$TPL;type=text/html" $B/admin/templates.php)
+R=$(curl -fsS -b "$A" -c "$A" -F "_csrf=$T" -F 'action=create' -F 'name=Maligna' -F 'slug=maligna' -F 'price_usd=0' -F "html=@$TPL;type=text/html" $B/admin/templates.php)
 has "$R" 'código ejecutable' || fail "no se rechazó el PHP embebido"
 has "$R" 'onclick'           || fail "no se rechazaron los manejadores en línea"
 has "$R" 'sin nonce'         || fail "no se rechazó el script sin nonce"
@@ -53,7 +54,7 @@ cat > "$TPL" <<'HTML'
 <body><h1>{{your_name}} &amp; {{partner_name}}</h1><p id="d">{{days_together}}</p><p>{{message}}</p>{{{ad_slot}}}</body></html>
 HTML
 [ "$(code -b "$A" -c "$A" -F "_csrf=$T" -F 'action=create' -F 'name=Prueba Humo' -F 'slug=prueba-humo' \
-    -F 'description=Plantilla de prueba' -F 'price_cop=5000' -F 'is_premium=1' -F "html=@$TPL;type=text/html" $B/admin/templates.php)" = 303 ] \
+    -F 'description=Plantilla de prueba' -F 'price_usd=2.50' -F 'is_premium=1' -F "html=@$TPL;type=text/html" $B/admin/templates.php)" = 303 ] \
     || fail "la plantilla válida debería aceptarse"
 LIST=$(get "$A" admin/templates.php)
 has "$LIST" 'prueba-humo' || fail "la plantilla no aparece en el listado"
@@ -96,10 +97,13 @@ T=$(tok "$A" admin/promos.php)
 curl -s -o /dev/null -b "$A" -c "$A" -d "_csrf=$T" -d 'action=promo_create' -d 'code=HUMO50' -d 'discount_percent=50' -d 'max_uses=0' $B/admin/promos.php
 has "$(get "$A" admin/promos.php)" 'HUMO50' || fail "el código no se creó"
 
-amount(){ curl -s -o /dev/null -w '%{redirect_url}' -b "$U" -c "$U" "$@" $B/checkout_wompi.php | grep -o 'amount-in-cents=[0-9]*' | cut -d= -f2; }
+# Monto (USD) que el servidor envió a Wompi en el último checkout, leído del simulador.
+amount(){ curl -s -o /dev/null -b "$U" -c "$U" "$@" $B/checkout_wompi.php; curl -fsS "$MOCK/_last/monto"; }
 T=$(tok "$U" dashboard.php); FULL=$(amount -d "_csrf=$T")
 T=$(tok "$U" dashboard.php); DISC=$(amount -d "_csrf=$T" -d 'promo=humo50')
-[ "$DISC" = "$(( FULL / 2 ))" ] || fail "descuento no aplicado (completo=$FULL, con código=$DISC)"
+# 50 % de 4.99 = 2.495 -> 2.50 (redondeo a centavo): se compara con tolerancia de 1 centavo.
+awk -v f="$FULL" -v d="$DISC" 'BEGIN{ exit !(d >= f/2 - 0.011 && d <= f/2 + 0.011 && d < f) }' \
+  || fail "descuento no aplicado (completo=$FULL, con código=$DISC)"
 
 T=$(tok "$U" dashboard.php)
 curl -s -o /dev/null -b "$U" -c "$U" -d "_csrf=$T" -d 'promo=NOEXISTE' $B/checkout_wompi.php
@@ -107,8 +111,14 @@ has "$(get "$U" dashboard.php)" 'no es válido' || fail "un código inexistente 
 
 # --- 9. Precio Premium fijado desde el panel --------------------------------
 T=$(tok "$A" admin/promos.php)
-curl -s -o /dev/null -b "$A" -c "$A" -d "_csrf=$T" -d 'action=settings' -d 'premium_price_cop=30000' $B/admin/promos.php
+curl -s -o /dev/null -b "$A" -c "$A" -d "_csrf=$T" -d 'action=settings' -d 'premium_price_usd=7.50' $B/admin/promos.php
 T=$(tok "$U" dashboard.php); NEW=$(amount -d "_csrf=$T")
-[ "$NEW" = 3000000 ] || fail "el precio del panel no se aplicó (esperado 3000000, obtenido $NEW)"
+[ "$NEW" = 7.5 ] || fail "el precio del panel no se aplicó (esperado 7.5, obtenido $NEW)"
+
+# Un precio inválido se rechaza y no pisa el vigente.
+T=$(tok "$A" admin/promos.php)
+R=$(curl -fsS -b "$A" -c "$A" -d "_csrf=$T" -d 'action=settings' -d 'ads_enabled=1' -d 'premium_price_usd=4.999' $B/admin/promos.php)
+has "$R" 'entre 0.01 y 99999.99' || fail "un precio con 3 decimales debe rechazarse"
+T=$(tok "$U" dashboard.php); [ "$(amount -d "_csrf=$T")" = 7.5 ] || fail "el precio inválido pisó al vigente"
 
 echo "SMOKE ADMIN OK"

@@ -1,0 +1,18 @@
+# Assets estáticos: nada aquí se ejecuta jamás (defensa en profundidad para subidas y plantillas).
+Options -Indexes -ExecCGI
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php7.c>
+    php_flag engine off
+</IfModule>
+<FilesMatch "(?i)\.(php\d?|phtml|phar|pl|py|cgi|sh|asp|aspx|jsp)$">
+    Require all denied
+</FilesMatch>
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set Content-Security-Policy "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox"
+    <FilesMatch "\.(svg|css|js|png|jpe?g|webp|woff2?)$">
+        Header set Cache-Control "public, max-age=604800"
+    </FilesMatch>
+</IfModule>

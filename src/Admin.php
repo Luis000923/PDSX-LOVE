@@ -28,7 +28,7 @@ final class Admin
         'ads_html'             => '',    // HTML del banner; vacío = marcador "Publicidad"
         'announcement_enabled' => '0',   // aviso global en la app
         'announcement_text'    => '',
-        'premium_price_cop'    => '',    // vacío = usar PREMIUM_PRICE_COP del .env
+        'premium_price_usd'    => '',    // vacío = usar PREMIUM_PRICE_USD del .env (ej. 4.99)
     ];
 
     public static function templateDir(): string
@@ -83,7 +83,7 @@ final class Admin
         if ($cache === null) {
             $cache = self::SETTINGS;
             try {
-                foreach (db()->query('SELECT key, value FROM settings')->fetchAll() as $row) {
+                foreach (db()->query('SELECT `key`, `value` FROM settings')->fetchAll() as $row) {
                     if (array_key_exists($row['key'], $cache)) {
                         $cache[$row['key']] = (string) $row['value'];
                     }
@@ -107,14 +107,28 @@ final class Admin
         if (!array_key_exists($key, self::SETTINGS)) {
             return;
         }
-        db()->prepare("INSERT INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now'))
-                       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at")
-            ->execute([$key, $value]);
+        // `key` y `value` van entre acentos graves: `key` es palabra reservada en MySQL.
+        db()->prepare('INSERT INTO settings (`key`, `value`, updated_at) VALUES (?, ?, UTC_TIMESTAMP())
+                       ON DUPLICATE KEY UPDATE `value` = ?, updated_at = UTC_TIMESTAMP()')
+            ->execute([$key, $value, $value]);
     }
 
     // -------------------------------------------------------- plantillas ---
 
     /** Convierte un nombre libre en un slug seguro ([a-z0-9-]), o '' si no queda nada. */
+    /**
+     * Precio en USD escrito por el admin -> "4.99" normalizado, o null si es inválido.
+     * Vacío/0 = "0.00" (sin compra suelta). Máx. $999.99 y hasta 2 decimales.
+     */
+    public static function parsePriceUsd(string $raw): ?string
+    {
+        $raw = str_replace(',', '.', trim($raw));
+        if ($raw === '' || !preg_match('/^\d{1,3}(?:\.\d{1,2})?$/', $raw)) {
+            return $raw === '' ? '0.00' : null;
+        }
+        return number_format((float) $raw, 2, '.', '');
+    }
+
     public static function slugify(string $text): string
     {
         $t = (string) preg_replace('/[^a-z0-9]+/', '-', mb_strtolower(self::deaccent($text), 'UTF-8'));
@@ -327,7 +341,7 @@ final class Admin
         $st = db()->prepare(
             "SELECT * FROM promos
               WHERE code = ? AND is_active = 1
-                AND (expires_at IS NULL OR expires_at >= date('now'))
+                AND (expires_at IS NULL OR expires_at >= UTC_DATE())
                 AND (max_uses = 0 OR uses < max_uses)"
         );
         $st->execute([$code]);

@@ -27,23 +27,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $email = strtolower(trim((string) ($_POST['email'] ?? '')));
         $pass  = (string) ($_POST['password'] ?? '');
 
-        $st = $pdo->prepare('SELECT id, password_hash FROM users WHERE email = ?');
+        $st = $pdo->prepare('SELECT id, password_hash, is_suspended FROM users WHERE email = ?');
         $st->execute([$email]);
         $row = $st->fetch();
 
         // Se verifica siempre contra un hash (dummy si no existe) para igualar tiempos de respuesta.
         $hash = $row['password_hash'] ?? password_hash('dummy', PASSWORD_DEFAULT);
-        if (password_verify($pass, $hash) && $row) {
+        if (password_verify($pass, $hash) && $row && (int) $row['is_suspended'] === 1) {
+            $error = 'Tu cuenta está suspendida. Contacta a soporte.';   // sin revelar el motivo
+        } elseif (password_verify($pass, $hash) && $row) {
             if (password_needs_rehash($hash, PASSWORD_DEFAULT)) {
                 $pdo->prepare('UPDATE users SET password_hash = ? WHERE id = ?')
                     ->execute([password_hash($pass, PASSWORD_DEFAULT), $row['id']]);
             }
             $pdo->prepare('DELETE FROM login_attempts WHERE ip = ?')->execute([$ip]);
             login_user((int) $row['id']);
-            redirect('dashboard.php');
+            redirect(auth_next('dashboard.php'));
         }
-        $pdo->prepare('INSERT INTO login_attempts (ip, created_at) VALUES (?, ?)')->execute([$ip, $now]);
-        $error = 'Correo o contraseña incorrectos.';
+        if ($error === null) {
+            $pdo->prepare('INSERT INTO login_attempts (ip, created_at) VALUES (?, ?)')->execute([$ip, $now]);
+            $error = 'Correo o contraseña incorrectos.';
+        }
     }
 }
 
@@ -57,5 +61,5 @@ page_start('Entrar');
   <input class="<?= INPUT_CLS ?>" type="password" name="password" placeholder="Contraseña" required autocomplete="current-password">
   <button class="<?= BTN_CLS ?>">Entrar</button>
 </form>
-<p class="mt-6 text-sm text-center text-slate-500">¿Sin cuenta? <a class="text-rose-600 font-semibold" href="<?= e(url('register.php')) ?>">Regístrate</a></p>
+<p class="mt-6 text-sm text-center text-slate-500">¿Sin cuenta? <a class="text-rose-600 font-semibold" href="<?= e(url('register.php') . auth_next_qs()) ?>">Regístrate</a></p>
 <?php page_end();

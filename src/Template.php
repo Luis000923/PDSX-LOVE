@@ -20,6 +20,49 @@ final class Template
         'message'      => 1000,
     ];
 
+    /** Categorías del marketplace: clave => etiqueta. */
+    public const CATEGORIES = [
+        'romantico'   => 'Romántico',
+        'aniversario' => 'Aniversario',
+        'cumpleanos'  => 'Cumpleaños',
+        'declaracion' => 'Declaración',
+        'especial'    => 'Especial',
+    ];
+
+    /** Renderiza según el tipo de plantilla (fila de `templates`): html con {{campos}} o carpeta PHP aprobada. */
+    public static function renderRow(array $tpl, array $data, array $raw = []): string
+    {
+        return ($tpl['kind'] ?? 'html') === 'php'
+            ? PhpTemplate::render((string) $tpl['slug'], $data, $raw)
+            : self::render((string) $tpl['file'], $data, $raw);
+    }
+
+    /** Mezcla datos demo con parámetros opcionales (vista previa embebida): inválido/ausente conserva el demo. */
+    public static function mergeDemo(array $demo, array $input, ?DateTimeImmutable $today = null): array
+    {
+        foreach (self::FIELDS as $field => $max) {
+            $v = $input[$field] ?? null;
+            if (!is_string($v)) {
+                continue;
+            }
+            $v = trim((string) preg_replace('/[^\P{Cc}\n]/u', '', str_replace("\r\n", "\n", $v)));
+            if ($v === '') {
+                continue;
+            }
+            if ($field === 'start_date') {
+                $d = DateTimeImmutable::createFromFormat('!Y-m-d', $v);
+                $now = $today ?? new DateTimeImmutable('today');
+                if ($d === false || $d->format('Y-m-d') !== $v || $d > $now) {
+                    continue;
+                }
+            } else {
+                $v = mb_substr($v, 0, $max);
+            }
+            $demo[$field] = $v;
+        }
+        return $demo;
+    }
+
     /** Valida y limpia la entrada del formulario. Devuelve [datos, errores]. */
     public static function sanitize(array $input): array
     {

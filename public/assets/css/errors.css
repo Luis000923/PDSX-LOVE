@@ -1,0 +1,24 @@
+/* Páginas de error: autocontenidas (sin CDN ni BD) para que carguen incluso con la app degradada. */
+:root{--bg:#fff1f2;--ink:#0f172a;--muted:#64748b;--accent:#f43f5e;--accent-2:#e11d48;--line:#fecdd3}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:flex;flex-direction:column;background:var(--bg);color:var(--ink);
+  font-family:'Poppins',system-ui,-apple-system,'Segoe UI',sans-serif;-webkit-font-smoothing:antialiased}
+.err-head{padding:20px 24px}
+.err-head a{display:inline-block;line-height:0}
+.err-main{flex:1;display:flex;align-items:center;justify-content:center;padding:24px}
+.err-card{max-width:420px;text-align:center}
+.err-code{margin:0;font-size:72px;line-height:1;font-weight:700;letter-spacing:-.04em}
+.err-code span{color:var(--accent)}
+.err-title{margin:16px 0 8px;font-size:20px;font-weight:600}
+.err-text{margin:0 0 28px;color:var(--muted);font-size:15px;line-height:1.6}
+.err-actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.btn{display:inline-block;padding:11px 20px;border-radius:12px;font-size:14px;font-weight:600;text-decoration:none;border:1px solid var(--line);color:var(--accent-2);background:#fff}
+.btn:hover{background:#fff5f5}
+.btn-primary{background:var(--accent-2);border-color:var(--accent-2);color:#fff}
+.btn-primary:hover{background:#be123c}
+.btn:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#0f172a;--ink:#f1f5f9;--muted:#94a3b8;--line:#334155}
+  .btn{background:#1e293b;color:#fda4af}.btn:hover{background:#273449}
+  .err-head img{filter:invert(1) hue-rotate(180deg)}
+}

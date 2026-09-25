@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $id = (int) $pdo->lastInsertId();
             $pdo->commit();
             login_user($id);
-            redirect('create.php');
+            redirect(auth_next('create.php'));
         } catch (PDOException $ex) {
             if (db()->inTransaction()) {
                 db()->rollBack();
@@ -43,7 +43,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 page_start('Crear cuenta');
 ?>
-<h1 class="text-2xl font-bold mt-4 mb-6">Crea tu cuenta</h1>
+<h1 class="text-2xl font-bold mt-4 mb-2">Crea tu cuenta</h1>
+<?php if (auth_next_qs() !== ''): ?><p class="mb-6 text-sm text-slate-600">Es rápido: en cuanto la crees pasas directo al pago de Premium.</p><?php else: ?><div class="mb-4"></div><?php endif; ?>
 <?php if ($error): ?><p class="mb-4 text-sm text-rose-700"><?= e($error) ?></p><?php endif; ?>
 <form method="post" class="space-y-4" autocomplete="on">
   <?= csrf_field() ?>
@@ -51,5 +52,5 @@ page_start('Crear cuenta');
   <input class="<?= INPUT_CLS ?>" type="password" name="password" placeholder="Contraseña (mín. 8)" required minlength="8" maxlength="72" autocomplete="new-password">
   <button class="<?= BTN_CLS ?>">Registrarme</button>
 </form>
-<p class="mt-6 text-sm text-center text-slate-500">¿Ya tienes cuenta? <a class="text-rose-600 font-semibold" href="<?= e(url('login.php')) ?>">Entrar</a></p>
+<p class="mt-6 text-sm text-center text-slate-500">¿Ya tienes cuenta? <a class="text-rose-600 font-semibold" href="<?= e(url('login.php') . auth_next_qs()) ?>">Entrar</a></p>
 <?php page_end();

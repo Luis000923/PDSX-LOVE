@@ -7,22 +7,22 @@
 <title>{{your_name}} ♥ {{partner_name}}</title>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <script nonce="{{{nonce}}}" src="https://cdn.tailwindcss.com"></script>
-<style>body{font-family:'Poppins',system-ui,sans-serif}</style>
+<style>html,body{overflow-x:hidden}body{font-family:'Poppins',system-ui,sans-serif}</style>
 </head>
-<body class="min-h-screen bg-rose-50 text-slate-800 flex flex-col items-center px-6 py-12">
+<body class="min-h-screen bg-rose-50 text-slate-800 flex flex-col items-center px-4 sm:px-6 py-12">
   <main class="w-full max-w-md text-center">
     <p class="text-rose-500 text-5xl mb-4">♥</p>
-    <h1 class="text-3xl font-bold">{{your_name}} &amp; {{partner_name}}</h1>
+    <h1 class="text-[clamp(1.5rem,6vw,2.25rem)] font-bold leading-tight break-words">{{your_name}} &amp; {{partner_name}}</h1>
 
     <section class="mt-8 rounded-3xl bg-white shadow-sm border border-rose-100 p-6">
       <p class="text-sm text-slate-500">Juntos desde hace</p>
-      <p class="text-6xl font-bold text-rose-600 my-2"><span id="days" data-start="{{start_date}}">{{days_together}}</span></p>
+      <p class="text-[clamp(2.5rem,12vw,3.75rem)] font-bold text-rose-600 my-2 break-words"><span id="days" data-start="{{start_date}}">{{days_together}}</span></p>
       <p class="text-slate-500">días</p>
     </section>
 
-    <section class="mt-6 rounded-3xl bg-white shadow-sm border border-rose-100 p-6 text-left leading-relaxed">
+    <section class="mt-6 rounded-3xl bg-white shadow-sm border border-rose-100 p-6 text-left leading-relaxed break-words [overflow-wrap:anywhere]">
       <p>{{message}}</p>
-      <p class="mt-4 text-right text-rose-600 font-semibold">— {{your_name}}</p>
+      <p class="mt-4 text-right text-rose-600 font-semibold break-words">— {{your_name}}</p>
     </section>
 
     {{{ad_slot}}}

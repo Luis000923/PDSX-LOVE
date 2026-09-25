@@ -1,0 +1,6 @@
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:linear-gradient(#fff8d6,#ffe27a);font-family:system-ui,sans-serif;color:#5b4300;overflow-x:hidden}
+.card{position:relative;z-index:1;max-width:28rem;margin:2rem 1rem;padding:2rem;border-radius:1.5rem;background:rgba(255,255,255,.85);text-align:center;box-shadow:0 10px 40px rgba(180,130,0,.25)}
+.eyebrow{text-transform:uppercase;letter-spacing:.2em;font-size:.75rem}.days strong{font-size:3rem;display:block;color:#d99a00}
+.msg{line-height:1.6}.note{font-size:.85rem;opacity:.7}.foot{position:fixed;bottom:.5rem;width:100%;text-align:center;font-size:.75rem;opacity:.6}
+.petal{position:fixed;top:-2rem;font-size:1.5rem;animation:fall linear infinite}
+@keyframes fall{to{transform:translateY(110vh) rotate(360deg)}}

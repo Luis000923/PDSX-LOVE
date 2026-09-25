@@ -20,12 +20,31 @@ jobs:
       fail-fast: false
       matrix:
         php: ["8.2", "8.3"]
+    # MySQL real para DatabaseTest (esquema, migración, FK y consultas portadas). Nombre *_test obligatorio.
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: lovepages_test
+          MYSQL_USER: lovepages
+          MYSQL_PASSWORD: lovepages
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: "3306"
+      DB_NAME: lovepages_test
+      DB_USER: lovepages
+      DB_PASSWORD: lovepages
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
-          extensions: pdo_sqlite, mbstring
+          extensions: pdo_mysql, mbstring
           coverage: none
           tools: composer:v2
       - uses: actions/cache@v4
@@ -71,7 +90,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: php
     env:
-      EVENTS_SECRET: evt_ci
+      WOMPI_API_SECRET: secret_ci      # secreto FALSO solo para CI
+      MOCK_PORT: "9090"
+      DB_ROOT_PASSWORD: root_ci        # contraseñas FALSAS solo para CI
+      DB_PASSWORD: lovepages_ci
     steps:
       - uses: actions/checkout@v4
       - name: Hadolint
@@ -87,13 +109,40 @@ jobs:
           tags: love:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - name: MySQL 8 (una BD para la prueba de humo y otra limpia para la del panel admin)
+        run: |
+          docker network create love-net
+          docker run -d --name love-db --network love-net \
+            -e MYSQL_ROOT_PASSWORD=$DB_ROOT_PASSWORD -e MYSQL_USER=lovepages -e MYSQL_PASSWORD=$DB_PASSWORD \
+            mysql:8.0 --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+          for i in $(seq 1 60); do
+            docker exec love-db mysqladmin ping -h 127.0.0.1 -uroot -p$DB_ROOT_PASSWORD --silent && break
+            sleep 2
+          done
+          docker exec love-db mysql -uroot -p$DB_ROOT_PASSWORD -e "
+            CREATE DATABASE lovepages       CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+            CREATE DATABASE lovepages_admin CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+            GRANT ALL ON lovepages.*       TO 'lovepages'@'%';
+            GRANT ALL ON lovepages_admin.* TO 'lovepages'@'%';"
+      - name: Simulador de Wompi El Salvador (el checkout llama a su API; en CI no se contacta la real)
+        run: |
+          nohup python3 tests/mock_wompi.py "$MOCK_PORT" > mock.log 2>&1 &
+          for i in $(seq 1 20); do
+            [ "$(curl -s http://127.0.0.1:$MOCK_PORT/)" = wompi-mock ] && exit 0
+            sleep 0.5
+          done
+          cat mock.log; exit 1
       - name: "Arrancar contenedor (igual que producción, read-only)"
         run: |
-          docker run -d --name love -p 8080:80 --read-only \
+          docker run -d --name love -p 8080:80 --read-only --network love-net \
             --tmpfs /tmp --tmpfs /var/run/apache2 --tmpfs /var/lock/apache2 --tmpfs /var/log/apache2 \
-            -v love-data:/var/www/data -v love-tpl:/var/www/app/templates -v love-thumbs:/var/www/app/public/assets/thumbs \
+            -v love-tpl:/var/www/app/templates -v love-thumbs:/var/www/app/public/assets/thumbs \
             -e APP_URL=http://127.0.0.1:8080 \
-            -e WOMPI_PUBLIC_KEY=pub_ci -e WOMPI_INTEGRITY_SECRET=int_ci -e WOMPI_EVENTS_SECRET=$EVENTS_SECRET \
+            -e DB_HOST=love-db -e DB_PORT=3306 -e DB_NAME=lovepages -e DB_USER=lovepages -e DB_PASSWORD=$DB_PASSWORD \
+            --add-host host.docker.internal:host-gateway \
+            -e WOMPI_ENV=sandbox -e WOMPI_CLIENT_ID=client_ci -e WOMPI_API_SECRET=$WOMPI_API_SECRET \
+            -e WOMPI_TOKEN_URL=http://host.docker.internal:$MOCK_PORT/connect/token \
+            -e WOMPI_API_URL=http://host.docker.internal:$MOCK_PORT \
             love:ci
           for i in $(seq 1 30); do
             [ "$(docker inspect -f '{{.State.Health.Status}}' love)" = healthy ] && exit 0
@@ -101,24 +150,28 @@ jobs:
           done
           docker logs love; exit 1
       - name: Prueba de humo E2E
-        run: tests/smoke.sh http://127.0.0.1:8080 "$EVENTS_SECRET"
+        run: tests/smoke.sh http://127.0.0.1:8080 "$WOMPI_API_SECRET" http://127.0.0.1:$MOCK_PORT
       - name: "Prueba de humo del panel admin (instancia limpia: el 1.er registro es el admin)"
         run: |
-          docker run -d --name love-admin -p 8081:80 --read-only \
+          docker run -d --name love-admin -p 8081:80 --read-only --network love-net \
             --tmpfs /tmp --tmpfs /var/run/apache2 --tmpfs /var/lock/apache2 --tmpfs /var/log/apache2 \
-            -v love-admin-data:/var/www/data -v love-admin-tpl:/var/www/app/templates \
+            -v love-admin-tpl:/var/www/app/templates \
             -v love-admin-thumbs:/var/www/app/public/assets/thumbs \
             -e APP_URL=http://127.0.0.1:8081 \
-            -e WOMPI_PUBLIC_KEY=pub_ci -e WOMPI_INTEGRITY_SECRET=int_ci -e WOMPI_EVENTS_SECRET=$EVENTS_SECRET \
+            -e DB_HOST=love-db -e DB_PORT=3306 -e DB_NAME=lovepages_admin -e DB_USER=lovepages -e DB_PASSWORD=$DB_PASSWORD \
+            --add-host host.docker.internal:host-gateway \
+            -e WOMPI_ENV=sandbox -e WOMPI_CLIENT_ID=client_ci -e WOMPI_API_SECRET=$WOMPI_API_SECRET \
+            -e WOMPI_TOKEN_URL=http://host.docker.internal:$MOCK_PORT/connect/token \
+            -e WOMPI_API_URL=http://host.docker.internal:$MOCK_PORT \
             love:ci
           for i in $(seq 1 30); do
             [ "$(docker inspect -f '{{.State.Health.Status}}' love-admin)" = healthy ] && break
             sleep 2
           done
-          tests/smoke_admin.sh http://127.0.0.1:8081
+          tests/smoke_admin.sh http://127.0.0.1:8081 http://127.0.0.1:$MOCK_PORT
       - name: Logs si falla
         if: failure()
-        run: docker logs love; docker logs love-admin || true
+        run: docker logs love; docker logs love-admin || true; docker logs love-db || true
       - name: Trivy (imagen)
         uses: aquasecurity/trivy-action@0.28.0
         with:

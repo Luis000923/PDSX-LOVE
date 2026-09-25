@@ -1,11 +1,15 @@
 # syntax=docker/dockerfile:1
 FROM php:8.2-apache
 
-# pdo_sqlite ya viene compilado en la imagen oficial; solo activamos módulos de Apache.
-RUN a2enmod rewrite headers \
+# pdo_mysql NO viene en la imagen oficial (solo pdo_sqlite): se compila aquí contra mysqlnd,
+# que ya está incluido, así que no hacen falta librerías de cliente. Además, módulos de Apache.
+# zip: el panel admin instala plantillas PHP subidas como .zip (PhpTemplate).
+RUN apt-get update && apt-get install -y --no-install-recommends libzip-dev \
+ && rm -rf /var/lib/apt/lists/* \
+ && docker-php-ext-install -j"$(nproc)" pdo_mysql zip \
+ && a2enmod rewrite headers \
  && a2dissite 000-default \
- && mkdir -p /var/www/app /var/www/data \
- && chown www-data:www-data /var/www/data
+ && mkdir -p /var/www/app
 
 COPY docker/apache.conf /etc/apache2/sites-available/app.conf
 COPY docker/php.ini /usr/local/etc/php/conf.d/zz-app.ini
@@ -21,11 +25,11 @@ COPY templates ./templates
 
 # El panel admin edita plantillas y sube miniaturas en tiempo de ejecución: esas dos rutas
 # son volúmenes (Docker las siembra con lo de la imagen la primera vez) y deben ser de www-data.
-RUN mkdir -p public/assets/thumbs \
- && chown -R www-data:www-data templates public/assets/thumbs
+RUN mkdir -p public/assets/thumbs public/assets/tpl templates/php \
+ && chown -R www-data:www-data templates public/assets/thumbs public/assets/tpl
 
-ENV DB_PATH=/var/www/data/store.sqlite
-VOLUME ["/var/www/data", "/var/www/app/templates", "/var/www/app/public/assets/thumbs"]
+# La BD ya no vive en un volumen local: es un servidor MySQL externo (DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD).
+VOLUME ["/var/www/app/templates", "/var/www/app/public/assets/thumbs", "/var/www/app/public/assets/tpl"]
 EXPOSE 80
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

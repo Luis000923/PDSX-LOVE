@@ -1,4 +1,55 @@
+# Secretos y entorno local
 .env
-database/*.sqlite*
+.env.*
+!.env.example
+
+# Dependencias y cachés
 vendor/
 .phpunit.cache/
+.phpstan.cache/
+.php-cs-fixer.cache
+composer.phar
+
+# Base de datos local y respaldos
+database/*.sqlite*
+*.sql.gz
+*.sql.bak
+
+# Subidas y assets generados en runtime (viven en volúmenes Docker)
+public/assets/thumbs/*
+!public/assets/thumbs/.gitkeep
+public/assets/tpl/*
+!public/assets/tpl/.gitkeep
+
+# Logs y temporales
+*.log
+*.tmp
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+.idea/
+.vscode/
+*.code-workspace
+
+# Artefactos de pruebas manuales: perfiles de Chromium, capturas, cookies de curl
+/-b
+cookies*.txt
+*.cookies
+lp-shot/
+ux-*/
+/crear/
+/galeria/
+/tienda/
+**/BrowserMetrics/
+**/Default/Cache/
+test-results/
+playwright-report/
+screenshots/
+
+# Herramientas de agentes (las definiciones de .claude/agents sí se versionan)
+.claude/scheduled_tasks.lock
+.claude/agent-memory-local/
+.claude/settings.local.json
