@@ -79,8 +79,55 @@ function empty_state(string $kind, string $title, string $text, ?string $href = 
         . '</div>';
 }
 
+/** Pantalla de espera mientras se crea el enlace de pago de Wompi (frases rotativas; se activa al enviar cualquier form a checkout_wompi.php). */
+function payment_wait_overlay(): string
+{
+    $n = e(csp_nonce());
+    return <<<HTML
+<div id="pay-wait" role="status" aria-live="polite" class="hidden fixed inset-0 z-[100] items-center justify-center bg-rose-50/95 backdrop-blur-sm px-6">
+  <div class="max-w-sm text-center">
+    <div class="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-rose-100">
+      <svg viewBox="0 0 24 24" class="h-8 w-8 text-rose-600 animate-pulse motion-reduce:animate-none" fill="currentColor" aria-hidden="true"><path d="M12 21.350l-1.450-1.320C5.400 15.360 2 12.280 2 8.500 2 5.420 4.420 3 7.500 3c1.740 0 3.410.810 4.500 2.090C13.090 3.810 14.760 3 16.500 3 19.580 3 22 5.420 22 8.500c0 3.780-3.400 6.860-8.550 11.540L12 21.350z"/></svg>
+    </div>
+    <h2 class="text-lg font-semibold text-slate-800">Creando tu enlace de pago</h2>
+    <p id="pay-wait-phrase" class="mt-2 min-h-[3rem] text-sm text-slate-600 transition-opacity duration-500 motion-reduce:transition-none">Preparando todo con calma…</p>
+    <p id="pay-wait-slow" hidden class="mt-3 text-xs text-slate-500">Está tardando un poco más de lo normal. No cierres esta página.</p>
+  </div>
+</div>
+<script nonce="{$n}">
+(function () {
+  var box = document.getElementById('pay-wait'), phrase = document.getElementById('pay-wait-phrase'), slow = document.getElementById('pay-wait-slow');
+  if (!box) return;
+  var phrases = [
+    'Preparando todo con calma…',
+    'Cada detalle importa, y este también.',
+    'Las cosas bonitas merecen un buen comienzo.',
+    'Tu pago viaja protegido con Wompi.',
+    'Ya casi: pronto verás la pantalla de pago.',
+    'Gracias por confiar en nosotros.'
+  ], i = 0, timer = null, slowTimer = null;
+  function next() {
+    phrase.style.opacity = '0';
+    setTimeout(function () { i = (i + 1) % phrases.length; phrase.textContent = phrases[i]; phrase.style.opacity = '1'; }, 500);
+  }
+  function stop() { clearInterval(timer); clearTimeout(slowTimer); box.classList.add('hidden'); box.classList.remove('flex'); slow.hidden = true; }
+  document.addEventListener('submit', function (ev) {
+    var f = ev.target;
+    if (!f || !f.action || f.action.indexOf('checkout_wompi.php') === -1 || ev.defaultPrevented) return;
+    box.classList.remove('hidden'); box.classList.add('flex'); i = 0; phrase.textContent = phrases[0]; phrase.style.opacity = '1';
+    timer = setInterval(next, 3200);
+    slowTimer = setTimeout(function () { slow.hidden = false; }, 12000);
+    setTimeout(function () { f.querySelectorAll('button[type=submit],input[type=submit]').forEach(function (b) { b.disabled = true; }); }, 0);
+  });
+  window.addEventListener('pageshow', function (e) { if (e.persisted) { stop(); document.querySelectorAll('button[type=submit]').forEach(function (b) { b.disabled = false; }); } });
+})();
+</script>
+HTML;
+}
+
 function page_end(): void
 {
+    echo payment_wait_overlay();
     echo '</main><footer class="mx-auto max-w-5xl px-5 py-8 text-center text-xs text-slate-500">'
        . '<a class="hover:text-rose-700 hover:underline" href="' . e(url('terms.php')) . '">Términos y condiciones</a>'
        . '<span class="mx-2 text-slate-300" aria-hidden="true">·</span>'
