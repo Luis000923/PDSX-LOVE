@@ -77,7 +77,7 @@ jobs:
       - name: Composer audit
         run: composer audit --no-interaction
       - name: Trivy (vulnerabilidades, secretos y misconfig)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scanners: vuln,secret,misconfig
@@ -173,7 +173,7 @@ jobs:
         if: failure()
         run: docker logs love; docker logs love-admin || true; docker logs love-db || true
       - name: Trivy (imagen)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: love:ci
           severity: CRITICAL
