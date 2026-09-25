@@ -1,0 +1,9 @@
+# Miniaturas subidas desde el panel: solo se sirven como imágenes estáticas.
+Options -Indexes
+# php_flag solo existe con mod_php; sin el guard, un servidor con PHP-FPM devolvería 500.
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+<FilesMatch "\.(php|phtml|phps|phar|cgi|pl|py|sh|html?)$">
+    Require all denied
+</FilesMatch>

@@ -1,0 +1,112 @@
+name: CD
+
+# Se ejecuta solo cuando CI termina en verde sobre main (o manualmente).
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false      # nunca cortar un despliegue a medias
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  publish:
+    name: Publicar imagen en GHCR
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write            # firma/atestación de procedencia
+      attestations: write
+    outputs:
+      image: ${{ steps.vars.outputs.image }}
+      tag: ${{ steps.vars.outputs.tag }}
+    steps:
+      - id: vars
+        run: |
+          SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
+          echo "tag=$SHA" >> "$GITHUB_OUTPUT"
+          echo "image=${REGISTRY}/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.vars.outputs.tag }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.vars.outputs.image }}:${{ steps.vars.outputs.tag }}
+            ${{ steps.vars.outputs.image }}:latest
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ steps.vars.outputs.tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: true
+          sbom: true
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ steps.vars.outputs.image }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+  deploy:
+    name: Desplegar en producción
+    needs: publish
+    runs-on: ubuntu-latest
+    environment:
+      name: production           # configura aquí revisores obligatorios (aprobación manual)
+      url: https://pdsx.org/love
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.publish.outputs.tag }}
+      - name: Preparar SSH
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}   # salida de: ssh-keyscan -p PORT HOST
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Copiar compose y desplegar
+        env:
+          TARGET: ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}
+          PORT: ${{ secrets.DEPLOY_PORT || '22' }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          IMAGE: ${{ needs.publish.outputs.image }}
+          TAG: ${{ needs.publish.outputs.tag }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          OPTS=(-i ~/.ssh/id_deploy -o StrictHostKeyChecking=yes)
+          scp "${OPTS[@]}" -P "$PORT" docker-compose.prod.yml "$TARGET:$DEPLOY_PATH/docker-compose.prod.yml"
+          {
+            printf 'export DEPLOY_PATH=%q IMAGE=%q TAG=%q GHCR_USER=%q GHCR_TOKEN=%q\n' \
+              "$DEPLOY_PATH" "$IMAGE" "$TAG" "$GHCR_USER" "$GHCR_TOKEN"
+            cat deploy/deploy.sh
+          } | ssh "${OPTS[@]}" -p "$PORT" "$TARGET" 'bash -s'
+      - name: Verificación externa
+        run: |
+          for i in $(seq 1 10); do
+            [ "$(curl -fsS https://pdsx.org/love/healthz.php || true)" = ok ] && { echo "Producción OK"; exit 0; }
+            sleep 6
+          done
+          echo "::error::healthz externo no responde"; exit 1

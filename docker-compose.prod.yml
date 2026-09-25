@@ -1,0 +1,19 @@
+# Producción: la imagen viene de GHCR (la despliega el workflow CD).
+# Requiere un archivo .env junto a este compose (ver .env.example).
+services:
+  web:
+    image: ${IMAGE:?IMAGE requerida}:${TAG:-latest}
+    restart: unless-stopped
+    ports: ["127.0.0.1:8080:80"]      # el proxy inverso (Caddy/Nginx) publica el 443
+    env_file: .env
+    read_only: true
+    tmpfs: [/tmp, /var/run/apache2, /var/lock/apache2, /var/log/apache2]
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - lovedata:/var/www/data
+      - lovetemplates:/var/www/app/templates
+      - lovethumbs:/var/www/app/public/assets/thumbs
+volumes:
+  lovedata:
+  lovetemplates:
+  lovethumbs:

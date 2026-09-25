@@ -1,0 +1,4 @@
+# Contenido subido en runtime; se versionan solo las reglas del directorio.
+*
+!.gitignore
+!.htaccess

@@ -1,0 +1,19 @@
+# Desarrollo local: docker compose up --build  ->  http://localhost:8080
+services:
+  web:
+    build: .
+    ports: ["8080:80"]
+    environment:
+      APP_URL: http://localhost:8080
+      APP_DEBUG: "1"
+      WOMPI_PUBLIC_KEY: ${WOMPI_PUBLIC_KEY:-pub_test_x}
+      WOMPI_INTEGRITY_SECRET: ${WOMPI_INTEGRITY_SECRET:-int_x}
+      WOMPI_EVENTS_SECRET: ${WOMPI_EVENTS_SECRET:-evt_x}
+    volumes:
+      - lovedata:/var/www/data
+      - lovetemplates:/var/www/app/templates
+      - lovethumbs:/var/www/app/public/assets/thumbs
+volumes:
+  lovedata:
+  lovetemplates:
+  lovethumbs:

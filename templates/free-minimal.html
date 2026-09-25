@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>{{your_name}} ♥ {{partner_name}}</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+<script nonce="{{{nonce}}}" src="https://cdn.tailwindcss.com"></script>
+<style>body{font-family:'Poppins',system-ui,sans-serif}</style>
+</head>
+<body class="min-h-screen bg-rose-50 text-slate-800 flex flex-col items-center px-6 py-12">
+  <main class="w-full max-w-md text-center">
+    <p class="text-rose-500 text-5xl mb-4">♥</p>
+    <h1 class="text-3xl font-bold">{{your_name}} &amp; {{partner_name}}</h1>
+
+    <section class="mt-8 rounded-3xl bg-white shadow-sm border border-rose-100 p-6">
+      <p class="text-sm text-slate-500">Juntos desde hace</p>
+      <p class="text-6xl font-bold text-rose-600 my-2"><span id="days" data-start="{{start_date}}">{{days_together}}</span></p>
+      <p class="text-slate-500">días</p>
+    </section>
+
+    <section class="mt-6 rounded-3xl bg-white shadow-sm border border-rose-100 p-6 text-left leading-relaxed">
+      <p>{{message}}</p>
+      <p class="mt-4 text-right text-rose-600 font-semibold">— {{your_name}}</p>
+    </section>
+
+    {{{ad_slot}}}
+  </main>
+
+  <script nonce="{{{nonce}}}">
+    (function () {
+      var el = document.getElementById('days');
+      var p = el.dataset.start.split('-').map(Number);
+      if (p.length !== 3) return;
+      var start = Date.UTC(p[0], p[1] - 1, p[2]);
+      var now = new Date();
+      var today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+      el.textContent = Math.max(0, Math.floor((today - start) / 86400000)).toLocaleString('es');
+    })();
+  </script>
+</body>
+</html>

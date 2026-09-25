@@ -1,0 +1,4 @@
+.env
+database/*.sqlite*
+vendor/
+.phpunit.cache/

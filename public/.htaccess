@@ -1,0 +1,4 @@
+Options -Indexes
+RewriteEngine On
+# Página pública de pareja: /c/abc12345
+RewriteRule ^c/([a-z0-9]{6,12})/?$ view.php?u=$1 [L,QSA]

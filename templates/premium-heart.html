@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>{{your_name}} ♥ {{partner_name}}</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+<script nonce="{{{nonce}}}" src="https://cdn.tailwindcss.com"></script>
+<style>
+  body{font-family:'Poppins',system-ui,sans-serif}
+  .heart{position:fixed;bottom:-2rem;animation:rise linear forwards;pointer-events:none;user-select:none}
+  @keyframes rise{to{transform:translateY(-110vh) rotate(25deg);opacity:0}}
+  @media (prefers-reduced-motion:reduce){.heart{display:none}}
+</style>
+</head>
+<body class="min-h-screen bg-gradient-to-b from-rose-600 via-pink-600 to-fuchsia-700 text-white flex flex-col items-center px-6 py-12 overflow-x-hidden">
+  <main class="w-full max-w-md text-center relative z-10">
+    <p class="text-6xl mb-4 animate-pulse">♥</p>
+    <h1 class="text-3xl font-bold">{{your_name}} &amp; {{partner_name}}</h1>
+
+    <section class="mt-8 rounded-3xl bg-white/15 backdrop-blur p-6 border border-white/20">
+      <p class="text-sm text-white/80">Nuestro tiempo juntos</p>
+      <p class="text-6xl font-bold my-2"><span id="days" data-start="{{start_date}}">{{days_together}}</span></p>
+      <p class="text-white/80">días de amor</p>
+    </section>
+
+    <section class="mt-6 rounded-3xl bg-white/15 backdrop-blur p-6 border border-white/20 text-left leading-relaxed">
+      <p>{{message}}</p>
+      <p class="mt-4 text-right font-semibold">— {{your_name}}</p>
+    </section>
+  </main>
+
+  <script nonce="{{{nonce}}}">
+    (function () {
+      var el = document.getElementById('days');
+      var p = el.dataset.start.split('-').map(Number);
+      if (p.length === 3) {
+        var now = new Date();
+        var diff = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) - Date.UTC(p[0], p[1] - 1, p[2]);
+        el.textContent = Math.max(0, Math.floor(diff / 86400000)).toLocaleString('es');
+      }
+      // Partículas: corazones flotantes
+      setInterval(function () {
+        var h = document.createElement('span');
+        h.className = 'heart';
+        h.textContent = ['♥', '❤', '💗'][Math.floor(Math.random() * 3)];
+        h.style.left = Math.random() * 100 + 'vw';
+        h.style.fontSize = 14 + Math.random() * 26 + 'px';
+        h.style.opacity = 0.4 + Math.random() * 0.5;
+        h.style.animationDuration = 5 + Math.random() * 6 + 's';
+        document.body.appendChild(h);
+        setTimeout(function () { h.remove(); }, 11000);
+      }, 450);
+    })();
+  </script>
+</body>
+</html>

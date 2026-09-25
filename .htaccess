@@ -1,0 +1,4 @@
+# Red de seguridad si el docroot es la raíz del proyecto: nunca servir .env ni archivos ocultos.
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>

@@ -1,0 +1,12 @@
+.git
+.github
+.env
+vendor
+tests
+deploy
+docs
+database/*.sqlite*
+docker-compose*.yml
+Dockerfile
+*.md
+public/assets/thumbs/*
