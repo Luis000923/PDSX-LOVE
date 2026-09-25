@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'nonce-{{{nonce}}}' https://cdn.tailwindcss.com">
+<title>Gracias, {{partner_name}}</title>
+<link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Nunito:wght@400;700;800&display=swap" rel="stylesheet">
+<script nonce="{{{nonce}}}" src="https://cdn.tailwindcss.com"></script>
+<style>html,body{overflow-x:hidden}body{font-family:'Nunito',sans-serif;background:#fff7ed}.hand{font-family:'Kalam',cursive}.note{background:#fff;border:1px solid #fed7aa;box-shadow:0 10px 25px rgba(124,45,18,.1);transform:rotate(-1deg)}.dot{width:10px;height:10px;border-radius:50%;background:#fb7185}.dot:nth-child(2){background:#fbbf24}.dot:nth-child(3){background:#34d399}</style>
+</head>
+<body class="min-h-screen px-4 py-12 text-orange-950">
+<main class="mx-auto w-full max-w-md">
+  <div class="flex justify-center gap-3" aria-hidden="true"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+  <p class="mt-5 text-center text-sm font-bold uppercase tracking-[.25em] text-orange-600">Una nota para agradecerte</p>
+  <h1 class="hand mt-3 text-center text-[clamp(2.5rem,12vw,4rem)] leading-none break-words">Gracias, {{partner_name}}</h1>
+  <section class="note mt-8 rounded-sm p-7 sm:p-9"><p class="hand text-2xl leading-relaxed break-words [overflow-wrap:anywhere] whitespace-pre-line">{{message}}</p><p class="hand mt-8 text-right text-2xl">Con gratitud,<br><strong>{{your_name}}</strong></p></section>
+  <p class="mt-7 text-center text-sm text-orange-700">Las personas como tú hacen la diferencia.</p>
+  {{{ad_slot}}}
+</main>
+</body>
+</html>

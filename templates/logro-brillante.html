@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'nonce-{{{nonce}}}' https://cdn.tailwindcss.com">
+<title>Lo lograste, {{partner_name}}</title>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script nonce="{{{nonce}}}" src="https://cdn.tailwindcss.com"></script>
+<style>html,body{overflow-x:hidden}body{font-family:'Lexend',sans-serif;background:#111827}.mono{font-family:'Space Mono',monospace}.shine{background:linear-gradient(120deg,#fbbf24,#fef3c7,#fbbf24);background-size:200% 100%;animation:shine 3s ease-in-out infinite;-webkit-background-clip:text;background-clip:text;color:transparent}@keyframes shine{50%{background-position:100% 0}}@media(prefers-reduced-motion:reduce){.shine{animation:none}}</style>
+</head>
+<body class="min-h-screen px-4 py-12 text-white">
+<main class="mx-auto w-full max-w-md">
+  <p class="mono text-xs font-bold uppercase tracking-[.3em] text-emerald-400">Nuevo logro desbloqueado</p>
+  <h1 class="shine mt-6 text-[clamp(2.4rem,11vw,4rem)] font-extrabold leading-tight break-words">{{partner_name}}</h1>
+  <div class="mt-8 rounded-3xl border border-amber-300/30 bg-amber-300/10 p-6 text-center"><p class="text-7xl" aria-hidden="true">&#9733;</p><p class="mono mt-4 text-sm text-amber-200">OFICIALMENTE INCRE&Iacute;BLE</p></div>
+  <section class="mt-7 rounded-3xl border border-white/10 bg-white/5 p-7 leading-relaxed break-words [overflow-wrap:anywhere]"><p class="whitespace-pre-line">{{message}}</p><p class="mt-6 text-right font-bold text-emerald-400">Celebrando contigo, {{your_name}}</p></section>
+  {{{ad_slot}}}
+</main>
+</body>
+</html>

@@ -51,10 +51,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+$googleBtn = google_login_button(auth_next_value());   // ?next=premium se conserva en el viaje a Google
 page_start('Entrar');
 ?>
 <h1 class="text-2xl font-bold mt-4 mb-6">Bienvenido de vuelta</h1>
 <?php if ($error): ?><p class="mb-4 text-sm text-rose-700"><?= e($error) ?></p><?php endif; ?>
+<?php if ($googleBtn !== ''): ?>
+  <?= $googleBtn ?>
+  <p class="my-4 text-center text-xs uppercase tracking-widest text-slate-400">o con correo</p>
+<?php endif; ?>
 <form method="post" class="space-y-4">
   <?= csrf_field() ?>
   <input class="<?= INPUT_CLS ?>" type="email" name="email" placeholder="Correo" required autocomplete="email">

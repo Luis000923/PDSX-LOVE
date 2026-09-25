@@ -55,11 +55,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+$googleBtn = google_login_button(auth_next_value());   // ?next=premium se conserva en el viaje a Google
 page_start('Crear cuenta');
 ?>
 <h1 class="text-2xl font-bold mt-4 mb-2">Crea tu cuenta</h1>
 <?php if (auth_next_qs() !== ''): ?><p class="mb-6 text-sm text-slate-600">Es rápido: en cuanto la crees pasas directo al pago de Premium.</p><?php else: ?><div class="mb-4"></div><?php endif; ?>
 <?php if ($error): ?><p class="mb-4 text-sm text-rose-700"><?= e($error) ?></p><?php endif; ?>
+<?php if ($googleBtn !== ''): ?>
+  <?= $googleBtn ?>
+  <p class="my-4 text-center text-xs uppercase tracking-widest text-slate-400">o con correo</p>
+  <p class="mb-4 text-xs text-slate-500">Con Google no eliges alias aquí: lo podrás poner en tu perfil cuando quieras.</p>
+<?php endif; ?>
 <form method="post" class="space-y-4" autocomplete="on">
   <?= csrf_field() ?>
   <?php if ($refCode !== ''): ?><input type="hidden" name="ref" value="<?= e($refCode) ?>"><p class="text-sm text-emerald-800">Te invitó alguien de LovePages 💌</p><?php endif; ?>

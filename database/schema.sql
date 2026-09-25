@@ -10,11 +10,6 @@
 --     igual que hacía datetime('now') en SQLite.
 --   * MySQL no tiene CREATE INDEX IF NOT EXISTS: los índices se declaran DENTRO de
 --     cada CREATE TABLE IF NOT EXISTS, que es lo que mantiene el archivo re-ejecutable.
---
--- Las columnas añadidas después de la v1 se aplican a bases existentes en db_migrate()
--- (config/database.php), que usa la tabla `schema_version` como marca de versión.
-
--- Niveles de membresía (pago único). Beneficios y precio los lee siempre el servidor.
 CREATE TABLE IF NOT EXISTS membership_tiers (
     id                    INT           NOT NULL AUTO_INCREMENT PRIMARY KEY,
     slug                  VARCHAR(20)   NOT NULL,
@@ -54,17 +49,24 @@ CREATE TABLE IF NOT EXISTS users (
     suspended_at  DATETIME     NULL,
     display_name  VARCHAR(30)  NULL,                       -- alias público del ranking (opt-in)
     show_in_rankings TINYINT(1) NOT NULL DEFAULT 0,        -- 1 = muestra su alias en el top de donadores
+    google_id     VARCHAR(128) NULL,                       -- `sub` de Google (OAuth 2.0); NULL = entra con contraseña
+    avatar_url    VARCHAR(512) NULL,                       -- foto de perfil (solo hosts de Google; ver GoogleAccount::safeAvatar)
+    email_verified_at DATETIME NULL,                       -- UTC; el momento en que se confirmó el buzón
+    last_login_at DATETIME     NULL,                       -- UTC; último acceso con contraseña o con Google
+    has_password  TINYINT(1)   NOT NULL DEFAULT 1,         -- 0 = cuenta creada con Google, sin contraseña propia
     bonus_tier_id INT          NULL,                       -- mejora TEMPORAL de plan (premio a creadores); no es el plan comprado
     bonus_tier_expires_at DATETIME NULL,                   -- UTC
     created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uq_users_email (email),
     UNIQUE KEY uq_users_display_name (display_name),
+    UNIQUE KEY uq_users_google_id (google_id),
     KEY idx_users_tier (membership_tier_id),
     CONSTRAINT fk_users_tier FOREIGN KEY (membership_tier_id) REFERENCES membership_tiers(id) ON DELETE SET NULL,
     CONSTRAINT fk_users_bonus_tier FOREIGN KEY (bonus_tier_id) REFERENCES membership_tiers(id) ON DELETE SET NULL,
     CONSTRAINT chk_users_is_premium CHECK (is_premium IN (0, 1)),
     CONSTRAINT chk_users_is_admin   CHECK (is_admin   IN (0, 1)),
-    CONSTRAINT chk_users_coins      CHECK (coins >= 0)
+    CONSTRAINT chk_users_coins      CHECK (coins >= 0),
+    CONSTRAINT chk_users_has_password CHECK (has_password IN (0, 1))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS templates (
@@ -304,7 +306,64 @@ ON DUPLICATE KEY UPDATE name = VALUES(name), price_usd = VALUES(price_usd), max_
 
 INSERT IGNORE INTO templates (slug, name, file, description, is_premium, price_coins) VALUES
     ('free-minimal',  'Minimal',             'free-minimal.html',  'Contador de días y carta, sin adornos.', 0, 0),
-    ('premium-heart', 'Corazones (Premium)', 'premium-heart.html', 'Lluvia de corazones animada.',           1, 5);
+    ('premium-heart', 'Corazones (Premium)', 'premium-heart.html', 'Lluvia de corazones animada.',           1, 5),
+    ('historia-numeros', 'Historia en números', 'historia-numeros.html', 'Un contador detallado para celebrar la historia compartida.', 1, 5),
+    ('sorpresa-cumple', 'Sorpresa de cumpleaños', 'sorpresa-cumple.html', 'Una sorpresa interactiva para celebrar un cumpleaños.', 1, 5),
+    ('quieres-ser-mi-novia', '¿Quieres ser mi novia?', 'quieres-ser-mi-novia.html', 'Una propuesta romántica e interactiva.', 1, 5),
+    ('cumpleanos-fiesta', 'Fiesta de cumpleaños', 'cumpleanos-fiesta.html', 'Una sorpresa colorida para celebrar su día.', 0, 0),
+    ('aniversario-constelacion', 'Constelación de aniversario', 'aniversario-constelacion.html', 'Una historia de amor escrita entre estrellas.', 1, 5),
+    ('declaracion-carta', 'Carta de declaración', 'declaracion-carta.html', 'Una carta elegante para decir lo que sientes.', 0, 0),
+    ('amistad-infinita', 'Amistad infinita', 'amistad-infinita.html', 'Un homenaje alegre para tu mejor amigo o amiga.', 0, 0),
+    ('graduacion-orgullo', 'Orgullo por tu graduación', 'graduacion-orgullo.html', 'Celebra una meta cumplida y el próximo capítulo.', 0, 0),
+    ('gracias-siempre', 'Gracias siempre', 'gracias-siempre.html', 'Una nota cálida para agradecer a alguien especial.', 0, 0),
+    ('navidad-juntos', 'Navidad juntos', 'navidad-juntos.html', 'Un saludo navideño lleno de cariño.', 0, 0),
+    ('distancia-contigo', 'A pesar de la distancia', 'distancia-contigo.html', 'Un mensaje para mantener cerca a quien está lejos.', 0, 0),
+    ('san-valentin-luz', 'San Valentín a la luz', 'san-valentin-luz.html', 'Una dedicatoria luminosa para el amor de tu vida.', 1, 5),
+    ('mama-mi-heroina', 'Mamá, mi heroína', 'mama-mi-heroina.html', 'Un homenaje tierno para mamá.', 0, 0),
+    ('papa-mi-guia', 'Papá, mi guía', 'papa-mi-guia.html', 'Un reconocimiento especial para papá.', 0, 0),
+    ('perdon-nuevo-comienzo', 'Un nuevo comienzo', 'perdon-nuevo-comienzo.html', 'Una forma sincera de pedir perdón.', 0, 0),
+    ('bienvenido-bebe', 'Bienvenido, bebé', 'bienvenido-bebe.html', 'Una bienvenida dulce para una nueva vida.', 0, 0),
+    ('boda-para-siempre', 'Boda para siempre', 'boda-para-siempre.html', 'Una promesa elegante para celebrar el matrimonio.', 1, 5),
+    ('mi-mejor-amigo', 'Mi mejor amigo', 'mi-mejor-amigo.html', 'Una dedicatoria divertida para tu amistad.', 0, 0),
+    ('logro-brillante', 'Logro brillante', 'logro-brillante.html', 'Celebra una meta alcanzada con orgullo.', 0, 0),
+    ('amor-editorial', 'Amor editorial', 'amor-editorial.html', 'Una dedicatoria minimalista con estilo de revista.', 1, 5),
+    ('carta-aurora', 'Carta de buenos días', 'carta-aurora.html', 'Una nota luminosa para comenzar el día.', 0, 0),
+    ('aniversario-linea', 'Aniversario en línea', 'aniversario-linea.html', 'Una celebración sobria de la historia compartida.', 0, 0),
+    ('promesa-sencilla', 'Promesa sencilla', 'promesa-sencilla.html', 'Un mensaje íntimo para elegir a alguien cada día.', 1, 5),
+    ('feliz-cumpleanos', 'Cumpleaños esencial', 'feliz-cumpleanos.html', 'Una felicitación limpia y alegre.', 0, 0),
+    ('gracias-minimal', 'Gracias minimal', 'gracias-minimal.html', 'Una nota breve para decir gracias con elegancia.', 0, 0),
+    ('te-extrano', 'Te extraño', 'te-extrano.html', 'Un mensaje nocturno para acortar la distancia.', 0, 0),
+    ('buenos-dias-amor', 'Buenos días, amor', 'buenos-dias-amor.html', 'Una sorpresa cálida para empezar la mañana.', 0, 0),
+    ('buenas-noches-cielo', 'Buenas noches, cielo', 'buenas-noches-cielo.html', 'Una despedida dulce antes de dormir.', 0, 0),
+    ('felicidades-logro', 'Felicidades por tu logro', 'felicidades-logro.html', 'Un reconocimiento elegante para una meta alcanzada.', 1, 5),
+    ('graduacion-elegante', 'Graduación elegante', 'graduacion-elegante.html', 'Una felicitación editorial para cerrar una etapa.', 0, 0),
+    ('nueva-casa', 'Nueva casa', 'nueva-casa.html', 'Un deseo cálido para un nuevo hogar.', 0, 0),
+    ('nuevo-trabajo', 'Nuevo trabajo', 'nuevo-trabajo.html', 'Mucho éxito en el próximo capítulo profesional.', 0, 0),
+    ('dia-especial', 'Un día especial', 'dia-especial.html', 'Una sorpresa hermosa porque sí.', 0, 0),
+    ('mama-calma', 'Mamá, gracias por tanto', 'mama-calma.html', 'Una dedicatoria serena y amorosa para mamá.', 0, 0),
+    ('papa-clasico', 'Papá, mi guía', 'papa-clasico.html', 'Un mensaje clásico para agradecer a papá.', 0, 0),
+    ('amistad-coral', 'Amistad de la buena', 'amistad-coral.html', 'Una dedicatoria divertida para una amistad especial.', 0, 0),
+    ('disculpa-blanca', 'Disculpa blanca', 'disculpa-blanca.html', 'Una disculpa honesta y tranquila.', 0, 0),
+    ('boda-marfil', 'Boda marfil', 'boda-marfil.html', 'Una promesa elegante para una vida juntos.', 1, 5),
+    ('mascota-companera', 'Mascota compañera', 'mascota-companera.html', 'Una dedicatoria tierna para tu compañero de aventuras.', 0, 0),
+    ('amor-en-detalle', 'Amor en detalle', 'amor-en-detalle.html', 'Una dedicatoria para los pequeños detalles.', 0, 0),
+    ('carta-azul', 'Carta azul', 'carta-azul.html', 'Una carta tranquila para alguien especial.', 0, 0),
+    ('carta-roja', 'Carta roja', 'carta-roja.html', 'Una carta intensa y romántica.', 1, 5),
+    ('domingo-contigo', 'Domingo contigo', 'domingo-contigo.html', 'Una dedicatoria para disfrutar sin prisa.', 0, 0),
+    ('buenas-noticias', 'Buenas noticias', 'buenas-noticias.html', 'Una sorpresa para celebrar una buena noticia.', 0, 0),
+    ('mucho-animo', 'Mucho ánimo', 'mucho-animo.html', 'Un mensaje para acompañar un día difícil.', 0, 0),
+    ('nuevo-comienzo', 'Nuevo comienzo', 'nuevo-comienzo.html', 'Una nota para abrir una nueva etapa.', 0, 0),
+    ('gracias-amiga', 'Gracias, amiga', 'gracias-amiga.html', 'Una dedicatoria para una amiga especial.', 0, 0),
+    ('gracias-amigo', 'Gracias, amigo', 'gracias-amigo.html', 'Una dedicatoria para un amigo especial.', 0, 0),
+    ('cumpleanos-elegante', 'Cumpleaños elegante', 'cumpleanos-elegante.html', 'Una felicitación sobria y hermosa.', 1, 5),
+    ('aniversario-dorado', 'Aniversario dorado', 'aniversario-dorado.html', 'Una celebración de amor duradero.', 1, 5),
+    ('te-apoyo', 'Te apoyo', 'te-apoyo.html', 'Una promesa de acompañamiento.', 0, 0),
+    ('te-escucho', 'Te escucho', 'te-escucho.html', 'Un mensaje de presencia y empatía.', 0, 0),
+    ('eres-mi-fortaleza', 'Eres mi fortaleza', 'eres-mi-fortaleza.html', 'Una dedicatoria para quien sostiene.', 0, 0),
+    ('un-dia-inolvidable', 'Un día inolvidable', 'un-dia-inolvidable.html', 'Una memoria especial para guardar.', 0, 0),
+    ('mi-complice', 'Mi cómplice', 'mi-complice.html', 'Una dedicatoria para tu persona de confianza.', 0, 0),
+    ('familia-corazon', 'Familia de corazón', 'familia-corazon.html', 'Un mensaje para alguien que es familia.', 0, 0),
+    ('felicidades-siempre', 'Felicidades siempre', 'felicidades-siempre.html', 'Una felicitación para cualquier logro.', 0, 0);
 
 -- ------------------------------------------------- top de donadores (v12) ---
 

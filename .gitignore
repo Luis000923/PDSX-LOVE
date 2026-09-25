@@ -53,3 +53,7 @@ screenshots/
 .claude/scheduled_tasks.lock
 .claude/agent-memory-local/
 .claude/settings.local.json
+
+client_secret.json
+client_secret_*.apps.googleusercontent.com.json
+*.apps.googleusercontent.com.json

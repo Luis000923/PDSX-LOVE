@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'nonce-{{{nonce}}}' https://cdn.tailwindcss.com">
+<title>Un nuevo comienzo para {{partner_name}}</title>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,700&family=DM+Sans:wght@400;600&display=swap" rel="stylesheet">
+<script nonce="{{{nonce}}}" src="https://cdn.tailwindcss.com"></script>
+<style>html,body{overflow-x:hidden}body{font-family:'DM Sans',sans-serif;background:#eef7f2}.serif{font-family:'Newsreader',serif}.leaf{animation:breathe 4s ease-in-out infinite}@keyframes breathe{50%{transform:translateY(-6px) rotate(4deg)}}@media(prefers-reduced-motion:reduce){.leaf{animation:none}}</style>
+</head>
+<body class="min-h-screen px-4 py-12 text-emerald-950">
+<main class="mx-auto w-full max-w-md text-center">
+  <div class="leaf text-6xl text-emerald-600" aria-hidden="true">&#10022;</div>
+  <p class="mt-5 text-sm font-bold uppercase tracking-[.25em] text-emerald-700">Con sinceridad</p>
+  <h1 class="serif mt-3 text-[clamp(2.5rem,11vw,4rem)] leading-tight break-words">Lo siento, {{partner_name}}</h1>
+  <p class="mt-4 text-emerald-800">Quiero cuidar lo que tenemos y comenzar de nuevo.</p>
+  <section class="mt-8 rounded-3xl bg-white p-7 text-left shadow-lg break-words [overflow-wrap:anywhere]"><p class="whitespace-pre-line leading-relaxed">{{message}}</p><p class="mt-6 text-right font-bold text-emerald-700">Con el coraz&oacute;n abierto, {{your_name}}</p></section>
+  {{{ad_slot}}}
+</main>
+</body>
+</html>

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'nonce-{{{nonce}}}' https://cdn.tailwindcss.com">
+<title>{{your_name}} y {{partner_name}} | Nuestro aniversario</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Manrope:wght@400;600;700&display=swap" rel="stylesheet">
+<script nonce="{{{nonce}}}" src="https://cdn.tailwindcss.com"></script>
+<style>
+html,body{overflow-x:hidden}body{font-family:'Manrope',sans-serif;background:#10172f;background-image:radial-gradient(#fcd34d 1px,transparent 1px),radial-gradient(#fda4af 1px,transparent 1px);background-position:0 0,24px 28px;background-size:52px 52px}.serif{font-family:'DM Serif Display',serif}.star{animation:blink 2.6s ease-in-out infinite}.star:nth-child(2){animation-delay:.8s}.star:nth-child(3){animation-delay:1.4s}@keyframes blink{50%{opacity:.3;transform:scale(.8)}}@media(prefers-reduced-motion:reduce){.star{animation:none}}
+</style>
+</head>
+<body class="min-h-screen text-white px-4 py-12">
+<main class="mx-auto w-full max-w-md text-center">
+  <div aria-hidden="true" class="text-3xl text-amber-300"><span class="star">✦</span> <span class="star text-rose-300">✧</span> <span class="star">✦</span></div>
+  <p class="mt-5 text-xs font-bold uppercase tracking-[.3em] text-amber-200">Otra vuelta al sol juntos</p>
+  <h1 class="serif mt-3 text-[clamp(2.3rem,10vw,3.7rem)] leading-tight break-words">{{your_name}} <span class="text-rose-300">&amp;</span> {{partner_name}}</h1>
+  <div class="mt-8 rounded-3xl border border-amber-200/30 bg-white/10 p-6 backdrop-blur">
+    <p class="text-sm text-indigo-100">Nuestra historia comenzó hace</p>
+    <p class="serif my-2 text-6xl text-amber-300"><span id="days" data-start="{{start_date}}">{{days_together}}</span></p>
+    <p class="text-sm text-indigo-100">días</p>
+  </div>
+  <section class="mt-6 rounded-3xl border border-white/15 bg-slate-950/60 p-6 text-left leading-relaxed shadow-xl break-words [overflow-wrap:anywhere]">
+    <p class="whitespace-pre-line">{{message}}</p><p class="mt-5 text-right font-bold text-amber-300">— {{your_name}}</p>
+  </section>
+  {{{ad_slot}}}
+</main>
+<script nonce="{{{nonce}}}">(function(){var e=document.getElementById('days'),p=e.dataset.start.split('-').map(Number);if(p.length===3){var n=new Date(),d=Date.UTC(n.getFullYear(),n.getMonth(),n.getDate())-Date.UTC(p[0],p[1]-1,p[2]);e.textContent=Math.max(0,Math.floor(d/86400000)).toLocaleString('es')}})();</script>
+</body>
+</html>

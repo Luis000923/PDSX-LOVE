@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'nonce-{{{nonce}}}' https://cdn.tailwindcss.com">
+<title>Una carta para {{partner_name}}</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<script nonce="{{{nonce}}}" src="https://cdn.tailwindcss.com"></script>
+<style>html,body{overflow-x:hidden}body{font-family:'Plus Jakarta Sans',sans-serif;background:#f4ede4}.paper{font-family:'Playfair Display',serif;background:#fffdf8;box-shadow:8px 8px 0 #d7bda5}.seal{transition:transform .25s ease}.paper:hover .seal{transform:rotate(-8deg) scale(1.05)}@media(prefers-reduced-motion:reduce){.seal{transition:none}}</style>
+</head>
+<body class="min-h-screen px-4 py-12 text-stone-800">
+<main class="mx-auto w-full max-w-md">
+  <p class="text-center text-sm font-bold uppercase tracking-[.28em] text-rose-700">Una carta para ti</p>
+  <section class="paper mt-6 rounded-sm border border-stone-200 p-7 sm:p-9">
+    <p class="text-4xl text-rose-600">♥</p>
+    <h1 class="mt-7 text-[clamp(2rem,9vw,3rem)] leading-tight break-words">Querido/a {{partner_name}}</h1>
+    <div class="mt-7 h-px bg-stone-200"></div>
+    <p class="mt-7 whitespace-pre-line break-words text-lg leading-relaxed [overflow-wrap:anywhere]">{{message}}</p>
+    <p class="mt-8 text-right text-xl break-words">Con amor,<br><strong>{{your_name}}</strong></p>
+    <div class="seal mx-auto mt-8 flex h-14 w-14 items-center justify-center rounded-full bg-rose-600 text-2xl text-white">♥</div>
+  </section>
+  <p class="mt-6 text-center text-sm text-stone-500">Hecha especialmente para {{partner_name}}</p>
+  {{{ad_slot}}}
+</main>
+</body>
+</html>

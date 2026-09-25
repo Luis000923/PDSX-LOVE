@@ -15,6 +15,7 @@ function error_messages(): array
         404 => ['title' => 'Página no encontrada', 'text' => 'El enlace no existe o la plantilla ya no está disponible. Revisa la dirección o vuelve al inicio.'],
         410 => ['title' => 'Esta página expiró', 'text' => 'La vigencia de esta página de pareja terminó. Si es tuya, entra a tu cuenta y renuévala desde «Mis páginas».'],
         500 => ['title' => 'Algo salió mal', 'text' => 'Tuvimos un problema de nuestro lado. Ya quedó registrado; inténtalo de nuevo en unos minutos.'],
+        503 => ['title' => 'No disponible', 'text' => 'Esta función está desactivada ahora mismo. Inténtalo de nuevo más tarde.'],
     ];
 }
 
@@ -48,6 +49,7 @@ function render_error(int $code, ?string $text = null): never
     $secondary = match ($code) {
         410, 403 => '<a class="btn" href="' . $login . '">Mis páginas</a>',
         500      => '<a class="btn" href="">Reintentar</a>',   // enlace a la propia URL: la CSP no admite javascript:
+        503      => '<a class="btn" href="' . e(url('login.php')) . '">Entrar con correo</a>',
         default  => '',
     };
 

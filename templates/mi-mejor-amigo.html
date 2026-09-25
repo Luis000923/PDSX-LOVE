@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'nonce-{{{nonce}}}' https://cdn.tailwindcss.com">
+<title>Mi mejor amigo | {{partner_name}}</title>
+<link href="https://fonts.googleapis.com/css2?family=Bungee+Shade&family=Nunito:wght@400;700;800&display=swap" rel="stylesheet">
+<script nonce="{{{nonce}}}" src="https://cdn.tailwindcss.com"></script>
+<style>html,body{overflow-x:hidden}body{font-family:'Nunito',sans-serif;background:#fff7ed;background-image:linear-gradient(45deg,rgba(251,146,60,.12) 25%,transparent 25%,transparent 75%,rgba(251,146,60,.12) 75%);background-size:32px 32px}.display{font-family:'Bungee Shade',cursive}.sticker{transform:rotate(-8deg);box-shadow:4px 4px 0 #0f766e}</style>
+</head>
+<body class="min-h-screen px-4 py-12 text-teal-950">
+<main class="mx-auto w-full max-w-md text-center">
+  <div class="sticker inline-block rounded-xl bg-orange-400 px-4 py-2 text-sm font-extrabold uppercase text-white">Equipo inseparable</div>
+  <h1 class="display mt-8 text-[clamp(2rem,10vw,3.4rem)] leading-tight break-words">Mi mejor<br>amigo</h1>
+  <p class="mt-4 text-xl font-bold break-words">{{partner_name}}</p>
+  <p class="mt-2 text-teal-800">Una dedicatoria de {{your_name}}</p>
+  <section class="mt-8 rounded-3xl bg-white p-7 text-left shadow-xl break-words [overflow-wrap:anywhere]"><p class="whitespace-pre-line leading-relaxed">{{message}}</p><p class="mt-6 text-right font-bold text-orange-600">Gracias por estar siempre.</p></section>
+  {{{ad_slot}}}
+</main>
+</body>
+</html>

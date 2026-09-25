@@ -1,0 +1,10 @@
+.git
+.env
+.env.*
+!.env.docker
+vendor
+storage/*
+public/uploads/*
+public/assets/thumbs/*
+tests/_output
+*.log

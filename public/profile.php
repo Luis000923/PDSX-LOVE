@@ -5,6 +5,8 @@ require __DIR__ . '/../src/bootstrap.php';
 /** Perfil: correo, contraseña y estado del plan. Solo autenticados. */
 $user = require_login();
 $uid  = (int) $user['id'];
+$hasPassword = (int) ($user['has_password'] ?? 1) === 1;
+$avatar      = GoogleAccount::safeAvatar(is_string($user['avatar_url'] ?? null) ? $user['avatar_url'] : null);
 
 $errors = ['email' => null, 'password' => null, 'alias' => null];
 
@@ -74,7 +76,11 @@ page_start('Mi perfil', 'max-w-4xl');
 ?>
 <section class="mt-2 mb-4 rounded-2xl bg-white border border-rose-100 p-5 grid md:grid-cols-[minmax(0,1fr)_auto] items-center gap-6">
   <div class="flex items-center gap-4 min-w-0">
-    <div class="h-16 w-16 shrink-0 rounded-full bg-rose-600 text-white text-2xl font-bold flex items-center justify-center" aria-hidden="true"><?= e(mb_strtoupper(mb_substr((string) $user['email'], 0, 1))) ?></div>
+    <?php if ($avatar !== null): ?>
+      <img src="<?= e($avatar) ?>" alt="" width="64" height="64" referrerpolicy="no-referrer" class="h-16 w-16 shrink-0 rounded-full border border-rose-200 object-cover">
+    <?php else: ?>
+      <div class="h-16 w-16 shrink-0 rounded-full bg-rose-600 text-white text-2xl font-bold flex items-center justify-center" aria-hidden="true"><?= e(mb_strtoupper(mb_substr((string) $user['email'], 0, 1))) ?></div>
+    <?php endif; ?>
     <div class="min-w-0">
       <h1 class="text-2xl font-bold">Mi perfil</h1>
       <p class="text-sm text-slate-600 break-all"><?= e((string) $user['email']) ?></p>
@@ -132,12 +138,16 @@ page_start('Mi perfil', 'max-w-4xl');
       <form method="post" class="space-y-3">
         <?= csrf_field() ?><input type="hidden" name="action" value="password">
         <?php $pe = $errors['password'] ? 'aria-invalid="true" aria-describedby="pw-err"' : ''; ?>
+        <?php if ($hasPassword): ?>
         <div>
           <label class="<?= $lbl ?>" for="current_password">Contraseña actual</label>
           <div class="<?= $field ?>"><?= $ico('ico-lock', $fi) ?><input id="current_password" class="<?= $inp ?>" type="password" name="current_password" required maxlength="72" autocomplete="current-password" <?= $pe ?>></div>
         </div>
+        <?php else: ?>
+          <p class="text-sm text-slate-600">Tu cuenta usa Google para entrar. Si también quieres entrar con correo, crea aquí una contraseña.</p>
+        <?php endif; ?>
         <div>
-          <label class="<?= $lbl ?>" for="new_password">Contraseña nueva</label>
+          <label class="<?= $lbl ?>" for="new_password"><?= $hasPassword ? 'Contraseña nueva' : 'Contraseña' ?></label>
           <div class="<?= $field ?>"><?= $ico('ico-key', $fi) ?><input id="new_password" class="<?= $inp ?>" type="password" name="new_password" required minlength="8" maxlength="72" autocomplete="new-password" aria-describedby="pw-help<?= $errors['password'] ? ' pw-err' : '' ?>" <?= $errors['password'] ? 'aria-invalid="true"' : '' ?>></div>
           <p id="pw-help" class="mt-1 text-xs text-slate-600">Mínimo 8 caracteres</p>
         </div>
@@ -146,7 +156,7 @@ page_start('Mi perfil', 'max-w-4xl');
           <div class="<?= $field ?>"><?= $ico('ico-key', $fi) ?><input id="confirm_password" class="<?= $inp ?>" type="password" name="confirm_password" required minlength="8" maxlength="72" autocomplete="new-password" <?= $pe ?>></div>
         </div>
         <?php if ($errors['password']): ?><p id="pw-err" role="alert" class="text-sm text-rose-700"><?= e($errors['password']) ?></p><?php endif; ?>
-        <button class="<?= BTN_CLS ?> min-h-[44px] focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2">Cambiar contraseña</button>
+        <button class="<?= BTN_CLS ?> min-h-[44px] focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2"><?= $hasPassword ? 'Cambiar contraseña' : 'Crear contraseña' ?></button>
       </form>
     </section>
   </div>

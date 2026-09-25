@@ -96,7 +96,8 @@ page_start('Galería de plantillas', 'max-w-5xl');
           : ($quota ? 'Membresía'
           : ($mine ? 'Desbloqueada' : ($cents > 0 ? '$' . wompi_format_usd($cents) : 'Membresía'))));
       $badge = $free || (!$quota && !$coinOnly && $mine) ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800';
-      $prev  = e(url('preview.php?t=' . rawurlencode((string) $t['slug']))); ?>
+      $prev  = e(url('preview.php?t=' . rawurlencode((string) $t['slug'])));
+      $embedPrev = e(url('preview.php?t=' . rawurlencode((string) $t['slug']) . '&embed=1')); ?>
     <article class="group rounded-2xl bg-white border border-rose-100 overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-0.5 transition flex flex-col">
       <a href="<?= $prev ?>" target="_blank" rel="noopener" class="relative block focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rose-600" aria-label="Vista previa de <?= e($t['name']) ?>">
         <?php if ($t['thumbnail']): ?>
@@ -112,6 +113,15 @@ page_start('Galería de plantillas', 'max-w-5xl');
         <h2 class="mt-0.5 font-semibold text-lg leading-snug"><?= e($t['name']) ?></h2>
         <?php if ($t['kind'] === 'utpl' && $t['credit_alias']): ?><p class="text-xs text-slate-500">Por <?= e((string) $t['credit_alias']) ?></p><?php endif; ?>
         <?php if ($t['description']): ?><p class="mt-1 text-sm text-slate-600 line-clamp-2"><?= e($t['description']) ?></p><?php endif; ?>
+        <details class="mt-3 rounded-xl border border-rose-100 bg-rose-50/50 overflow-hidden group/preview">
+          <summary class="min-h-[44px] cursor-pointer list-none px-3 flex items-center justify-between gap-3 text-sm font-semibold text-rose-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-600">
+            <span class="inline-flex items-center gap-1.5"><?= $ico('ico-eye', 17) ?>Ver preview</span>
+            <span aria-hidden="true" class="transition group-open/preview:rotate-180">⌄</span>
+          </summary>
+          <div class="border-t border-rose-100 bg-white p-2">
+            <iframe src="<?= $embedPrev ?>" loading="lazy" title="Preview de <?= e($t['name']) ?>" class="block w-full aspect-[9/16] max-h-[360px] rounded-lg border-0 bg-rose-50" sandbox="allow-scripts"></iframe>
+          </div>
+        </details>
         <?php // Precio siempre visible, también en las plantillas de membresía (con su valor en monedas). ?>
         <p class="mt-2 text-sm font-semibold text-slate-900">
           <?php if ($free): ?>Gratis

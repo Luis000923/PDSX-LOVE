@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'nonce-{{{nonce}}}' https://cdn.tailwindcss.com">
+<title>Amistad infinita | {{your_name}}</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<script nonce="{{{nonce}}}" src="https://cdn.tailwindcss.com"></script>
+<style>html,body{overflow-x:hidden}body{font-family:'Space Grotesk',sans-serif;background:#102a43}.display{font-family:'Syne',sans-serif}.tile{transition:transform .25s ease}.tile:hover{transform:translateY(-5px) rotate(-1deg)}</style>
+</head>
+<body class="min-h-screen px-4 py-12 text-sky-50">
+<main class="mx-auto w-full max-w-md">
+  <div class="flex items-center justify-between text-cyan-300"><span class="text-4xl">✦</span><span class="text-4xl">✦</span></div>
+  <p class="mt-3 text-sm font-bold uppercase tracking-[.25em] text-cyan-300">Manual de nuestra amistad</p>
+  <h1 class="display mt-3 text-[clamp(2.2rem,10vw,3.6rem)] leading-none break-words">{{your_name}} + {{partner_name}}</h1>
+  <p class="mt-5 max-w-sm text-lg text-sky-100">Gracias por ser esa persona que convierte cualquier día en una buena historia.</p>
+  <div class="mt-8 grid grid-cols-2 gap-3">
+    <div class="tile rounded-2xl bg-cyan-300 p-5 text-sky-950"><p class="text-3xl">☀</p><p class="mt-8 font-bold">Risas</p></div>
+    <div class="tile rounded-2xl bg-amber-300 p-5 text-sky-950"><p class="text-3xl">★</p><p class="mt-8 font-bold">Confianza</p></div>
+    <div class="tile rounded-2xl bg-rose-300 p-5 text-sky-950"><p class="text-3xl">♥</p><p class="mt-8 font-bold">Lealtad</p></div>
+    <div class="tile rounded-2xl bg-lime-300 p-5 text-sky-950"><p class="text-3xl">∞</p><p class="mt-8 font-bold">Siempre</p></div>
+  </div>
+  <section class="mt-7 rounded-3xl border border-sky-200/20 bg-sky-950/50 p-6 leading-relaxed break-words [overflow-wrap:anywhere]"><p class="whitespace-pre-line">{{message}}</p><p class="mt-5 text-right font-bold text-cyan-300">— {{your_name}}</p></section>
+  {{{ad_slot}}}
+</main>
+</body>
+</html>
