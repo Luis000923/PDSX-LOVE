@@ -89,6 +89,7 @@ final class Payments
         }
         $r = WompiClient::parseLinkStatus($st);
         if (!$r['approved']) {
+            error_log("Wompi verificación {$pay['reference']}: Wompi aún no la da por aprobada " . WompiClient::describeLink($st));
             return 'pending';
         }
         if ($r['amount_cents'] === null || $r['amount_cents'] !== (int) $pay['amount_in_cents']) {

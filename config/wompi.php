@@ -329,6 +329,31 @@ final class WompiClient
         ];
     }
 
+    /**
+     * Resumen SIN datos personales de la respuesta de GET /EnlacePago/{id}, para el log de diagnóstico
+     * (claves, banderas y, por transacción, aprobada/resultado/monto/productiva). Nunca el cuerpo completo.
+     *
+     * @param array<mixed> $link
+     */
+    public static function describeLink(array $link): string
+    {
+        $bool = static fn (mixed $v): string => $v === true ? 'true' : ($v === false ? 'false' : '-');
+        $tx = static function (mixed $t) use ($bool): string {
+            if (!is_array($t)) {
+                return 'null';
+            }
+            $res = self::pick($t, 'resultadoTransaccion');
+            $mon = self::pick($t, 'monto');
+            return 'aprobada=' . $bool(self::pick($t, 'esAprobada')) . ',resultado=' . (is_scalar($res) ? (string) $res : '-')
+                . ',monto=' . (is_numeric($mon) ? (string) $mon : '-') . ',real=' . $bool(self::pick($t, 'esReal'));
+        };
+        $list = self::pick($link, 'transacciones');
+        $n = self::pick($link, 'cantidadPagosExitosos');
+        return '[claves=' . implode('|', array_map('strval', array_keys($link))) . '; transaccionCompra=' . $tx(self::pick($link, 'transaccionCompra'))
+            . '; transacciones=' . (is_array($list) ? count($list) : '-') . '; exitosos=' . (is_scalar($n) ? (string) $n : '-')
+            . '; usable=' . $bool(self::pick($link, 'usable')) . '; productivo=' . $bool(self::pick($link, 'estaProductivo')) . ']';
+    }
+
     /** @param array<mixed> $a */
     private static function pick(array $a, string $key): mixed
     {
