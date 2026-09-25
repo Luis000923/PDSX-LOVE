@@ -3,7 +3,7 @@ declare(strict_types=1);
 require __DIR__ . '/../src/bootstrap.php';
 
 if (current_user()) {
-    redirect('dashboard.php');
+    redirect('index.php');
 }
 
 const MAX_ATTEMPTS = 8;      // fallos permitidos por IP...
@@ -47,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $pdo->prepare('DELETE FROM login_attempts WHERE ip IN (?, ?)')->execute([$ip, $emailKey]);
             login_user((int) $row['id']);
-            redirect(auth_next('dashboard.php'));
+            redirect(auth_next('index.php'));
         }
         if ($error === null) {
             $ins = $pdo->prepare('INSERT INTO login_attempts (ip, created_at) VALUES (?, ?)');

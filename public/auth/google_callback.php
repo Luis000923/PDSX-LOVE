@@ -65,4 +65,4 @@ $nextQs = $state['next'] !== '' ? '?next=' . $state['next'] : '';
 $needsAlias = GoogleAccount::needsAliasPrompt($result['id']);
 redirect($needsAlias
     ? url('auth/google_alias.php') . $nextQs
-    : auth_next_path($state['next'], $result['created'] ? 'create.php' : 'dashboard.php'));
+    : auth_next_path($state['next'], 'index.php'));
