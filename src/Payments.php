@@ -306,12 +306,16 @@ final class Payments
         return max(WOMPI_MIN_AMOUNT_IN_CENTS, (int) round(max(0, $cents) * (100 - $pct) / 100));
     }
 
-    /** ¿El cupón vale para este producto? (alcance y plan concreto). */
-    public static function promoApplies(array $promo, ?int $tierId, bool $isTemplate): bool
+    /**
+     * ¿El cupón vale para este producto? (alcance y plan concreto). `all` cubre membresías, plantillas y recargas de
+     * monedas; `coins` solo recargas. En una recarga el cupón rebaja el precio en USD; las monedas recibidas no cambian.
+     */
+    public static function promoApplies(array $promo, ?int $tierId, bool $isTemplate, bool $isCoins = false): bool
     {
         return match ((string) ($promo['scope'] ?? 'all')) {
-            'tiers'     => !$isTemplate && $tierId !== null && ($promo['tier_id'] === null || (int) $promo['tier_id'] === $tierId),
-            'templates' => $isTemplate,
+            'tiers'     => !$isTemplate && !$isCoins && $tierId !== null && ($promo['tier_id'] === null || (int) $promo['tier_id'] === $tierId),
+            'templates' => $isTemplate && !$isCoins,
+            'coins'     => $isCoins,
             default     => true,
         };
     }

@@ -65,14 +65,14 @@ $backPath = $coins > 0 ? 'tienda.php#monedas' : ($tpl ? 'create.php' : 'tienda.p
 $amountInCents = $coins > 0 ? $packCents : ($tpl ? Access::extraTemplatePriceInCents($tpl, $userTier) : Access::tierPriceInCents((array) $tier));
 $promoCode     = null;
 
-// Los códigos de promoción no aplican a recargas de monedas.
-if ($coins === 0 && ($code = trim((string) ($_POST['promo'] ?? ''))) !== '') {
+// Un cupón rebaja el PRECIO en USD (también en recargas de monedas: las monedas que se reciben no cambian).
+if (($code = trim((string) ($_POST['promo'] ?? ''))) !== '') {
     $promo = Admin::findUsablePromo($code);
     if (!$promo) {
         flash('Ese código de promoción no es válido, ya caducó o se agotó.');
-        redirect($tpl ? 'create.php' : 'dashboard.php?offer=code#premium');
+        redirect($coins > 0 ? $backPath : ($tpl ? 'create.php' : 'dashboard.php?offer=code#premium'));
     }
-    if (!Payments::promoApplies($promo, $tier ? (int) $tier['id'] : null, $tpl !== null)) {
+    if (!Payments::promoApplies($promo, $tier ? (int) $tier['id'] : null, $tpl !== null, $coins > 0)) {
         flash('Ese código no aplica a este producto.');
         redirect($backPath);
     }
@@ -82,6 +82,10 @@ if ($coins === 0 && ($code = trim((string) ($_POST['promo'] ?? ''))) !== '') {
     }
     $promoCode     = (string) $promo['code'];
     $amountInCents = Payments::discountedCents($amountInCents, (int) $promo['discount_percent']);
+    if ($coins > 0 && $amountInCents === 0) {   // monedas gratis por cupón: no se permite (el 100 % solo vale para membresías y plantillas)
+        flash('Ese cupón no se puede usar en recargas de monedas.');
+        redirect($backPath);
+    }
     if ($amountInCents === 0) {   // cupón 100 %: sin pasarela
         $r = Payments::redeemFree($pdo, (int) $user['id'], $promo, $tier ? (int) $tier['id'] : null, $tpl ? (int) $tpl['id'] : null);
         flash($r['ok'] ? '¡Cupón aplicado! Tu compra quedó activada.' : (string) $r['error']);
@@ -115,7 +119,7 @@ try {
         $identifier,
         $amountInCents,
         $coins > 0 ? "LovePages · $coins monedas" : ($tpl ? 'LovePages · ' . $tpl['name'] : 'LovePages ' . $tier['name']),
-        $coins > 0 ? "Recarga de $coins monedas (pago único)" : ($tpl ? 'Acceso a la plantilla (pago único)' : 'Membresía: más páginas, monedas de bono y más días de vida (pago único)'),
+        $coins > 0 ? "Recarga de $coins monedas (pago único)" . ($promoCode !== null ? ' con cupón' : '') : ($tpl ? 'Acceso a la plantilla (pago único)' : 'Membresía: más páginas, monedas de bono y más días de vida (pago único)'),
         url($backPath),
         url('webhook_wompi.php'),
     );

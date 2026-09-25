@@ -52,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!ctype_digit($form['max_uses']) || (int) $form['max_uses'] > 100000) {
             $errors[] = 'Los usos máximos deben ser un entero (0 = ilimitado).';
         }
-        if (!in_array($form['scope'], ['all', 'tiers', 'templates'], true)) {
+        if (!in_array($form['scope'], ['all', 'tiers', 'templates', 'coins'], true)) {
             $errors[] = 'Alcance inválido.';
         }
         $tierId = null;
@@ -135,7 +135,7 @@ admin_errors($errors);
           $expired = $p['expires_at'] !== null && $p['expires_at'] < gmdate('Y-m-d');
           $spent   = (int) $p['max_uses'] > 0 && (int) $p['uses'] >= (int) $p['max_uses'];
           [$lbl, $tone] = !$p['is_active'] ? ['Desactivado', 'slate'] : ($expired ? ['Vencido', 'rose'] : ($spent ? ['Agotado', 'amber'] : ['Activo', 'green']));
-          $scope = match ($p['scope']) { 'tiers' => $p['tier_name'] ? 'Plan ' . $p['tier_name'] : 'Todos los planes', 'templates' => 'Plantillas', default => 'Todo' }; ?>
+          $scope = match ($p['scope']) { 'tiers' => $p['tier_name'] ? 'Plan ' . $p['tier_name'] : 'Todos los planes', 'templates' => 'Plantillas', 'coins' => 'Recargas de monedas', default => 'Todo' }; ?>
     <tr>
       <td class="px-4 py-3"><span class="font-mono font-semibold"><?= e($p['code']) ?></span>
         <?php if ($p['note']): ?><p class="text-xs text-slate-500"><?= e($p['note']) ?></p><?php endif; ?></td>
@@ -179,9 +179,10 @@ admin_errors($errors);
       <input id="expires_at" name="expires_at" type="date" class="<?= ADMIN_INPUT_CLS ?>" value="<?= e($form['expires_at']) ?>"></div>
     <div><label class="block text-sm font-semibold mb-1" for="scope">Alcance</label>
       <select id="scope" name="scope" class="<?= ADMIN_INPUT_CLS ?>">
-        <option value="all"<?= $form['scope'] === 'all' ? ' selected' : '' ?>>Todo</option>
+        <option value="all"<?= $form['scope'] === 'all' ? ' selected' : '' ?>>Todo (incluye monedas)</option>
         <option value="tiers"<?= $form['scope'] === 'tiers' ? ' selected' : '' ?>>Solo membresías</option>
-        <option value="templates"<?= $form['scope'] === 'templates' ? ' selected' : '' ?>>Solo plantillas</option></select></div>
+        <option value="templates"<?= $form['scope'] === 'templates' ? ' selected' : '' ?>>Solo plantillas</option>
+        <option value="coins"<?= $form['scope'] === 'coins' ? ' selected' : '' ?>>Solo recargas de monedas</option></select></div>
     <div><label class="block text-sm font-semibold mb-1" for="tier_id">Plan concreto <span class="font-normal text-slate-500">(con «Solo membresías»)</span></label>
       <select id="tier_id" name="tier_id" class="<?= ADMIN_INPUT_CLS ?>"><option value="">Cualquiera</option>
         <?php foreach ($tiers as $t): ?><option value="<?= (int) $t['id'] ?>"<?= $form['tier_id'] === (string) $t['id'] ? ' selected' : '' ?>><?= e($t['name']) ?></option><?php endforeach; ?></select></div>

@@ -71,6 +71,14 @@ page_start('Tienda', 'max-w-5xl');
     <?php else: ?>Con Pareja o Eterno se suma un % extra a cada paquete.<?php endif; ?></p>
   <?php if ($lastCoins === 'PENDING'): ?><p role="status" class="mt-4 rounded-xl bg-amber-50 text-amber-800 text-sm px-4 py-3">Estamos confirmando tu recarga… se actualizará sola en unos segundos.</p><?= pending_payment_refresh() ?><?php endif; ?>
 
+  <?php if ($user !== null): ?>
+    <div class="mt-5 max-w-sm">
+      <label for="coin-promo" class="block text-sm font-semibold text-slate-700">¿Tienes un cupón?</label>
+      <input id="coin-promo" type="text" maxlength="32" autocomplete="off" autocapitalize="characters" placeholder="Código de promoción"
+             class="mt-1 w-full min-h-[44px] rounded-xl border border-rose-200 bg-white px-4 text-base uppercase focus:outline-none focus:ring-2 focus:ring-rose-400">
+      <p class="mt-1 text-xs text-slate-500">Rebaja el precio del paquete; las monedas que recibes no cambian.</p>
+    </div>
+  <?php endif; ?>
   <div class="mt-6 grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
     <?php foreach (Coins::PACKS_CENTS as $cents):
         $base = Coins::packCoins($cents, null);
@@ -91,12 +99,22 @@ page_start('Tienda', 'max-w-5xl');
           <a class="mt-4 block w-full text-center <?= BTN_CLS ?>" href="<?= e(url('register.php')) ?>">Crear cuenta</a>
         <?php else: ?>
           <form method="post" action="<?= e(url('checkout_wompi.php')) ?>" class="mt-4 w-full">
-            <?= csrf_field() ?><input type="hidden" name="pack" value="<?= $cents ?>"><button class="w-full <?= BTN_CLS ?>">Comprar</button>
+            <?= csrf_field() ?><input type="hidden" name="pack" value="<?= $cents ?>"><input type="hidden" name="promo" value="" data-coin-promo><button class="w-full <?= BTN_CLS ?>">Comprar</button>
           </form>
         <?php endif; ?>
       </article>
     <?php endforeach; ?>
   </div>
+
+  <script nonce="<?= e(csp_nonce()) ?>">
+  // El cupón se escribe una vez y viaja con el paquete que se compre (el servidor lo valida y calcula el descuento).
+  (function () {
+    var f = document.getElementById('coin-promo'); if (!f) return;
+    document.querySelectorAll('#monedas form').forEach(function (form) {
+      form.addEventListener('submit', function () { var h = form.querySelector('[data-coin-promo]'); if (h) h.value = f.value.trim(); });
+    });
+  })();
+  </script>
 
   <ul class="mt-8 grid sm:grid-cols-3 gap-3 text-sm text-slate-600">
     <li class="flex items-center gap-2"><?= $ico('ico-shield', 24) ?>Pago seguro con Wompi</li>
