@@ -68,7 +68,7 @@ page_start('Galería de plantillas', 'max-w-5xl');
     <?php endforeach; ?>
   </nav>
 
-  <div class="flex items-center justify-between gap-3 text-sm">
+  <div class="flex flex-wrap items-center justify-between gap-2 text-sm">
     <p class="text-slate-500" aria-live="polite"><strong class="text-slate-800"><?= $n ?></strong> plantilla<?= $n === 1 ? '' : 's' ?></p>
     <nav class="flex items-center rounded-full bg-white border border-rose-100 p-0.5" aria-label="Ordenar por">
       <?php foreach (['popular' => 'Populares', 'new' => 'Nuevas', 'price' => 'Precio'] as $k => $label): ?>

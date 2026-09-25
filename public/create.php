@@ -107,7 +107,7 @@ page_start('Crea tu página', 'max-w-5xl');
           <legend class="font-semibold text-lg">1. Elige tu plantilla</legend>
           <a class="text-sm text-rose-700 font-semibold underline min-h-[44px] inline-flex items-center" href="<?= e(url('index.php')) ?>">Ver la galería completa</a>
         </div>
-        <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
         <?php foreach ($templates as $t): $locked = $isLocked($t); $cost = Access::coinCost($user, $t); ?>
           <div class="relative flex flex-col rounded-2xl border border-rose-100 bg-white overflow-hidden text-sm transition has-[:checked]:border-rose-500 has-[:checked]:bg-rose-50 has-[:checked]:ring-2 has-[:checked]:ring-rose-300 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-rose-600 <?= $locked ? '' : 'hover:border-rose-300' ?>">
             <label class="block <?= $locked ? 'opacity-60' : 'cursor-pointer' ?>">

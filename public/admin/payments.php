@@ -137,6 +137,38 @@ admin_errors($errors);
 
 $sel = static fn(string $cur, string $v): string => $cur === $v ? ' selected' : '';
 $methodTone = ['WOMPI' => 'blue', 'MANUAL' => 'violet', 'PROMO' => 'green'];
+
+/** Nota + <details> de gestión (aprobar/anular), igual en la fila de tabla y en la tarjeta móvil. */
+$manageCell = static function (array $r, string $back) use ($concept): string {
+    $done = $r['fulfilled_at'] !== null || $r['status'] === 'APPROVED';
+    $canApprove = in_array($r['status'], Payments::MANUAL_APPROVABLE, true) && !$done;
+    $canVoid = !$done && $r['status'] !== 'VOIDED';
+    $out = '';
+    if ($r['admin_note']) {
+        $out .= '<p class="text-xs text-slate-600 mb-1">' . e($r['admin_note']) . '</p>';
+    }
+    if (!$canApprove && !$canVoid) {
+        return $out;
+    }
+    $out .= '<details class="text-sm"><summary class="cursor-pointer text-rose-700 font-semibold">Gestionar</summary>';
+    if ($canApprove) {
+        $out .= '<form method="post" class="mt-2 space-y-2 border border-slate-200 rounded-lg p-3">'
+            . csrf_field() . '<input type="hidden" name="id" value="' . (int) $r['id'] . '"><input type="hidden" name="back" value="' . e($back) . '">'
+            . '<label class="block text-xs font-semibold" for="n-a' . (int) $r['id'] . '">Motivo (obligatorio)</label>'
+            . '<input id="n-a' . (int) $r['id'] . '" name="note" required maxlength="255" placeholder="transferencia verificada" class="' . ADMIN_INPUT_CLS . '">'
+            . '<details class="rounded bg-amber-50 border border-amber-200 p-2"><summary class="cursor-pointer text-xs font-semibold text-amber-900">Confirmar aprobación manual</summary>'
+            . '<label class="flex items-start gap-2 text-xs mt-2"><input type="checkbox" name="confirm" value="1" required> Confirmo que el pago fue verificado y se activará ' . e($concept($r)) . ' para ' . e($r['email']) . '.</label>'
+            . '<button name="action" value="approve" class="' . ADMIN_BTN_CLS . ' mt-2">Aprobar manualmente</button></details></form>';
+    }
+    if ($canVoid) {
+        $out .= '<form method="post" class="mt-2 space-y-2 border border-slate-200 rounded-lg p-3">'
+            . csrf_field() . '<input type="hidden" name="id" value="' . (int) $r['id'] . '"><input type="hidden" name="back" value="' . e($back) . '">'
+            . '<label class="block text-xs font-semibold" for="n-v' . (int) $r['id'] . '">Motivo de la anulación</label>'
+            . '<input id="n-v' . (int) $r['id'] . '" name="note" required maxlength="255" class="' . ADMIN_INPUT_CLS . '">'
+            . '<button name="action" value="void" class="' . ADMIN_BTN_DANGER_CLS . '">Anular</button></form>';
+    }
+    return $out . '</details>';
+};
 ?>
 <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
   <?= admin_stat('Ingresos del mes', admin_money((int) $k['revenue']), 'Aprobados por pasarela o manual', 'payments', 'green') ?>
@@ -171,49 +203,42 @@ $methodTone = ['WOMPI' => 'blue', 'MANUAL' => 'violet', 'PROMO' => 'green'];
 </form>
 
 <section class="<?= ADMIN_CARD_CLS ?> !p-0 overflow-hidden">
-<?php if (!$rows): echo admin_empty('No hay pagos con esos filtros', 'Prueba a limpiar los filtros.'); else:
-    echo admin_table_open(['#', 'Usuario', 'Concepto', 'Monto' => 'right', 'Método', 'Estado', 'Fecha (SV)', 'Nota / acciones']);
-    foreach ($rows as $r):
-        $done = $r['fulfilled_at'] !== null || $r['status'] === 'APPROVED';
-        $canApprove = in_array($r['status'], Payments::MANUAL_APPROVABLE, true) && !$done;
-        $canVoid = !$done && $r['status'] !== 'VOIDED'; ?>
-  <tr>
-    <td class="px-4 py-3 tabular">#<?= (int) $r['id'] ?></td>
-    <td class="px-4 py-3"><a class="text-rose-700 hover:underline" href="<?= e(url('admin/user.php?id=' . (int) $r['user_id'])) ?>"><?= e($r['email']) ?></a></td>
-    <td class="px-4 py-3"><?= e($concept($r)) ?><?= $r['promo_code'] ? ' ' . admin_badge((string) $r['promo_code'], 'violet') : '' ?></td>
-    <td class="px-4 py-3 text-right tabular"><?= e(admin_money((int) $r['amount_in_cents'])) ?></td>
-    <td class="px-4 py-3"><?= admin_badge((string) $r['method'], $methodTone[$r['method']] ?? 'slate') ?></td>
-    <td class="px-4 py-3"><?= admin_status_badge((string) $r['status']) ?></td>
-    <td class="px-4 py-3 whitespace-nowrap"><?= e(admin_date($r['created_at'])) ?></td>
-    <td class="px-4 py-3 max-w-xs">
-      <?php if ($r['admin_note']): ?><p class="text-xs text-slate-600 mb-1"><?= e($r['admin_note']) ?></p><?php endif; ?>
-      <?php if ($canApprove || $canVoid): ?>
-      <details class="text-sm"><summary class="cursor-pointer text-rose-700 font-semibold">Gestionar</summary>
-        <?php if ($canApprove): ?>
-        <form method="post" class="mt-2 space-y-2 border border-slate-200 rounded-lg p-3">
-          <?= csrf_field() ?><input type="hidden" name="id" value="<?= (int) $r['id'] ?>"><input type="hidden" name="back" value="<?= e($back) ?>">
-          <label class="block text-xs font-semibold" for="n-a<?= (int) $r['id'] ?>">Motivo (obligatorio)</label>
-          <input id="n-a<?= (int) $r['id'] ?>" name="note" required maxlength="255" placeholder="transferencia verificada" class="<?= ADMIN_INPUT_CLS ?>">
-          <details class="rounded bg-amber-50 border border-amber-200 p-2"><summary class="cursor-pointer text-xs font-semibold text-amber-900">Confirmar aprobación manual</summary>
-            <label class="flex items-start gap-2 text-xs mt-2"><input type="checkbox" name="confirm" value="1" required>
-              Confirmo que el pago fue verificado y se activará <?= e($concept($r)) ?> para <?= e($r['email']) ?>.</label>
-            <button name="action" value="approve" class="<?= ADMIN_BTN_CLS ?> mt-2">Aprobar manualmente</button>
-          </details>
-        </form>
-        <?php endif; ?>
-        <?php if ($canVoid): ?>
-        <form method="post" class="mt-2 space-y-2 border border-slate-200 rounded-lg p-3">
-          <?= csrf_field() ?><input type="hidden" name="id" value="<?= (int) $r['id'] ?>"><input type="hidden" name="back" value="<?= e($back) ?>">
-          <label class="block text-xs font-semibold" for="n-v<?= (int) $r['id'] ?>">Motivo de la anulación</label>
-          <input id="n-v<?= (int) $r['id'] ?>" name="note" required maxlength="255" class="<?= ADMIN_INPUT_CLS ?>">
-          <button name="action" value="void" class="<?= ADMIN_BTN_DANGER_CLS ?>">Anular</button>
-        </form>
-        <?php endif; ?>
-      </details>
-      <?php endif; ?>
-    </td>
-  </tr>
-<?php endforeach; echo admin_table_close(); endif; ?>
+<?php if (!$rows): echo admin_empty('No hay pagos con esos filtros', 'Prueba a limpiar los filtros.'); else: ?>
+  <div class="hidden sm:block">
+    <?= admin_table_open(['#', 'Usuario', 'Concepto', 'Monto' => 'right', 'Método', 'Estado', 'Fecha (SV)', 'Nota / acciones']) ?>
+    <?php foreach ($rows as $r): ?>
+    <tr>
+      <td class="px-4 py-3 tabular">#<?= (int) $r['id'] ?></td>
+      <td class="px-4 py-3"><a class="text-rose-700 hover:underline" href="<?= e(url('admin/user.php?id=' . (int) $r['user_id'])) ?>"><?= e($r['email']) ?></a></td>
+      <td class="px-4 py-3"><?= e($concept($r)) ?><?= $r['promo_code'] ? ' ' . admin_badge((string) $r['promo_code'], 'violet') : '' ?></td>
+      <td class="px-4 py-3 text-right tabular"><?= e(admin_money((int) $r['amount_in_cents'])) ?></td>
+      <td class="px-4 py-3"><?= admin_badge((string) $r['method'], $methodTone[$r['method']] ?? 'slate') ?></td>
+      <td class="px-4 py-3"><?= admin_status_badge((string) $r['status']) ?></td>
+      <td class="px-4 py-3 whitespace-nowrap"><?= e(admin_date($r['created_at'])) ?></td>
+      <td class="px-4 py-3 max-w-xs"><?= $manageCell($r, $back) ?></td>
+    </tr>
+    <?php endforeach; echo admin_table_close(); ?>
+  </div>
+  <ul class="sm:hidden divide-y divide-slate-100">
+    <?php foreach ($rows as $r): ?>
+    <li class="p-4">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <a class="font-semibold text-rose-700 hover:underline break-all" href="<?= e(url('admin/user.php?id=' . (int) $r['user_id'])) ?>"><?= e($r['email']) ?></a>
+          <p class="text-xs text-slate-500 mt-0.5">#<?= (int) $r['id'] ?> · <?= e($concept($r)) ?><?= $r['promo_code'] ? ' ' . admin_badge((string) $r['promo_code'], 'violet') : '' ?></p>
+        </div>
+        <p class="shrink-0 text-right font-semibold tabular"><?= e(admin_money((int) $r['amount_in_cents'])) ?></p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2 mt-2">
+        <?= admin_badge((string) $r['method'], $methodTone[$r['method']] ?? 'slate') ?>
+        <?= admin_status_badge((string) $r['status']) ?>
+        <span class="text-xs text-slate-500 tabular ml-auto"><?= e(admin_date($r['created_at'])) ?></span>
+      </div>
+      <div class="mt-2"><?= $manageCell($r, $back) ?></div>
+    </li>
+    <?php endforeach; ?>
+  </ul>
+<?php endif; ?>
 </section>
 <?= admin_pager($page, $pages, 'admin/payments.php', $query) ?>
 <?php admin_page_end();

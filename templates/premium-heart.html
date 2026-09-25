@@ -8,26 +8,27 @@
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <script nonce="{{{nonce}}}" src="https://cdn.tailwindcss.com"></script>
 <style>
+  html,body{overflow-x:hidden}
   body{font-family:'Poppins',system-ui,sans-serif}
-  .heart{position:fixed;bottom:-2rem;animation:rise linear forwards;pointer-events:none;user-select:none}
+  .heart{position:fixed;bottom:-2rem;left:0;animation:rise linear forwards;pointer-events:none;user-select:none}
   @keyframes rise{to{transform:translateY(-110vh) rotate(25deg);opacity:0}}
   @media (prefers-reduced-motion:reduce){.heart{display:none}}
 </style>
 </head>
-<body class="min-h-screen bg-gradient-to-b from-rose-600 via-pink-600 to-fuchsia-700 text-white flex flex-col items-center px-6 py-12 overflow-x-hidden">
+<body class="min-h-screen bg-gradient-to-b from-rose-600 via-pink-600 to-fuchsia-700 text-white flex flex-col items-center px-4 sm:px-6 py-12 overflow-x-hidden">
   <main class="w-full max-w-md text-center relative z-10">
     <p class="text-6xl mb-4 animate-pulse">♥</p>
-    <h1 class="text-3xl font-bold">{{your_name}} &amp; {{partner_name}}</h1>
+    <h1 class="text-[clamp(1.5rem,6vw,2.25rem)] font-bold leading-tight break-words">{{your_name}} &amp; {{partner_name}}</h1>
 
     <section class="mt-8 rounded-3xl bg-white/15 backdrop-blur p-6 border border-white/20">
       <p class="text-sm text-white/80">Nuestro tiempo juntos</p>
-      <p class="text-6xl font-bold my-2"><span id="days" data-start="{{start_date}}">{{days_together}}</span></p>
+      <p class="text-[clamp(2.5rem,12vw,3.75rem)] font-bold my-2 break-words"><span id="days" data-start="{{start_date}}">{{days_together}}</span></p>
       <p class="text-white/80">días de amor</p>
     </section>
 
-    <section class="mt-6 rounded-3xl bg-white/15 backdrop-blur p-6 border border-white/20 text-left leading-relaxed">
+    <section class="mt-6 rounded-3xl bg-white/15 backdrop-blur p-6 border border-white/20 text-left leading-relaxed break-words [overflow-wrap:anywhere]">
       <p>{{message}}</p>
-      <p class="mt-4 text-right font-semibold">— {{your_name}}</p>
+      <p class="mt-4 text-right font-semibold break-words">— {{your_name}}</p>
     </section>
   </main>
 

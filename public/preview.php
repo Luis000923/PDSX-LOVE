@@ -38,13 +38,18 @@ try {
 
 $loggedIn = current_user() !== null;
 $use = e(url($loggedIn ? 'create.php?template=' . rawurlencode((string) $tpl['slug']) : 'register.php'));
-$bar = '<div style="position:fixed;left:0;right:0;bottom:0;z-index:2147483647;display:flex;gap:12px;align-items:center;justify-content:space-between;'
-     . 'padding:10px 16px;background:rgba(255,255,255,.95);border-top:1px solid #fecdd3;font:600 14px system-ui,sans-serif;color:#1e293b">'
-     . '<span>Vista previa · ' . e((string) $tpl['name']) . '</span><span style="display:flex;gap:8px">'
-     . '<a href="' . e(url('index.php')) . '" style="color:#64748b;text-decoration:none;padding:8px 10px">← Volver</a>'
-     . '<a href="' . $use . '" style="background:#e11d48;color:#fff;text-decoration:none;border-radius:10px;padding:8px 14px">Usar esta plantilla</a></span></div>';
+$bar = '<div style="position:fixed;left:0;right:0;bottom:0;z-index:2147483647;display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between;'
+     . 'padding:10px max(16px,env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));'
+     . 'background:rgba(255,255,255,.97);border-top:1px solid #fecdd3;font:600 13px system-ui,sans-serif;color:#1e293b;max-width:100vw;box-sizing:border-box">'
+     . '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1 1 auto;min-width:0">Vista previa · ' . e((string) $tpl['name']) . '</span>'
+     . '<span style="display:flex;gap:8px;flex:0 0 auto">'
+     . '<a href="' . e(url('index.php')) . '" style="color:#64748b;text-decoration:none;padding:10px 10px;min-height:44px;display:inline-flex;align-items:center">← Volver</a>'
+     . '<a href="' . $use . '" style="background:#e11d48;color:#fff;text-decoration:none;border-radius:10px;padding:10px 14px;min-height:44px;display:inline-flex;align-items:center">Usar esta plantilla</a></span></div>';
 if ($embed) {
     $bar = '';
+} else {
+    // Espacio para que la barra fija no tape el final del contenido en pantallas cortas.
+    $bar = '<style>body{padding-bottom:calc(64px + env(safe-area-inset-bottom)) !important}</style>' . $bar;
 }
 $pos = strripos($html, '</body>');
 $html = $pos === false ? $html . $bar : substr_replace($html, $bar, $pos, 0);

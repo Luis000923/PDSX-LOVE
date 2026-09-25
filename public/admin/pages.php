@@ -29,7 +29,7 @@ admin_errors($errors);
 ?>
 <form method="get" class="flex gap-2 mb-4">
   <?php if ($filter !== 'all'): ?><input type="hidden" name="filter" value="<?= e($filter) ?>"><?php endif; ?>
-  <input class="<?= ADMIN_INPUT_CLS ?>" type="search" name="q" value="<?= e($q) ?>" placeholder="Enlace, correo del dueño o nombres" aria-label="Buscar página">
+  <input class="<?= ADMIN_INPUT_CLS ?> flex-1 min-w-0" type="search" name="q" value="<?= e($q) ?>" placeholder="Enlace, correo del dueño o nombres" aria-label="Buscar página">
   <button class="<?= ADMIN_BTN_CLS ?>">Buscar</button>
 </form>
 <nav class="flex flex-wrap gap-2 mb-6" aria-label="Filtros">
