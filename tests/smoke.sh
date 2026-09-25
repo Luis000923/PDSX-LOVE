@@ -33,12 +33,12 @@ has "$HOME" 'register.php?next=code'        || fail "el camino con código debe 
 # --- cuenta (con intención de pago), página y plantillas -----------------------
 T=$(tok "register.php?next=premium")
 EMAIL="smoke$RANDOM@example.com"
-LOC=$(curl -s -o /dev/null -w '%{redirect_url}' -b "$J" -c "$J" --data-urlencode "_csrf=$T" --data-urlencode "email=$EMAIL" -d 'password=12345678' "$B/register.php?next=premium")
+LOC=$(curl -s -o /dev/null -w '%{redirect_url}' -b "$J" -c "$J" --data-urlencode "_csrf=$T" --data-urlencode "email=$EMAIL" -d 'password=12345678' --data-urlencode "alias=Humo$RANDOM" "$B/register.php?next=premium")
 [[ "$LOC" == *"dashboard.php?offer=1"* ]] || fail "tras registrarse con next=premium debe ir al pago (obtenido: '$LOC')"
 
 # Un next hostil nunca produce una redirección externa (se prueba con otra cuenta, sin sesión).
 J2=$(mktemp); T2=$(curl -fsS -c "$J2" "$B/register.php" | grep -o 'name="_csrf" value="[^"]*"' | head -1 | cut -d'"' -f4)
-LOC2=$(curl -s -o /dev/null -w '%{redirect_url}' -b "$J2" -c "$J2" --data-urlencode "_csrf=$T2" --data-urlencode "email=evil$RANDOM@example.com" -d 'password=12345678' "$B/register.php?next=https://evil.example")
+LOC2=$(curl -s -o /dev/null -w '%{redirect_url}' -b "$J2" -c "$J2" --data-urlencode "_csrf=$T2" --data-urlencode "email=evil$RANDOM@example.com" -d 'password=12345678' --data-urlencode "alias=Evil$RANDOM" "$B/register.php?next=https://evil.example")
 rm -f "$J2"
 [[ "$LOC2" != *evil.example* && "$LOC2" == "$B/"* ]] || fail "next hostil produjo una redirección externa: '$LOC2'"
 

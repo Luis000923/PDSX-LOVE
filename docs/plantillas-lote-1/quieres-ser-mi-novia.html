@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>{{your_name}} ♥ {{partner_name}}</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+<script nonce="{{{nonce}}}" src="https://cdn.tailwindcss.com"></script>
+<style>
+  html,body{overflow-x:hidden}
+  body{font-family:'Poppins',system-ui,sans-serif}
+  #arena{position:relative;touch-action:manipulation}
+  #btnNo{transition:transform .25s ease, font-size .25s ease, padding .25s ease}
+  #btnYes{transition:transform .2s ease, font-size .2s ease}
+  @media (prefers-reduced-motion:reduce){
+    #btnNo{transition:none}
+    #btnYes{transition:none}
+    .confetti{display:none}
+  }
+  .confetti{position:fixed;top:-2rem;pointer-events:none;user-select:none;animation:fall linear forwards}
+  @keyframes fall{to{transform:translateY(110vh) rotate(360deg);opacity:0}}
+  .heart{position:fixed;bottom:-2rem;left:0;animation:rise linear forwards;pointer-events:none;user-select:none}
+  @keyframes rise{to{transform:translateY(-110vh) rotate(25deg);opacity:0}}
+  @media (prefers-reduced-motion:reduce){.heart{display:none}}
+</style>
+</head>
+<body class="min-h-screen bg-gradient-to-b from-fuchsia-600 via-pink-600 to-rose-600 text-white flex flex-col items-center px-4 sm:px-6 py-10 overflow-x-hidden">
+  <main class="w-full max-w-md text-center relative z-10">
+
+    <div id="question-view">
+      <p class="text-5xl mb-3">💘</p>
+      <h1 class="text-[clamp(1.5rem,7vw,2.4rem)] font-bold leading-tight break-words">
+        {{partner_name}}, ¿quieres ser mi novia/o?
+      </h1>
+      <p class="mt-3 text-white/80 text-sm break-words">— pregunta {{your_name}}</p>
+
+      <div id="arena" class="relative mt-10 h-56 sm:h-64 w-full">
+        <button id="btnYes" type="button"
+          class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 min-w-[44px] min-h-[44px] px-8 py-4 rounded-full bg-white text-rose-600 font-bold text-lg shadow-xl">
+          Sí
+        </button>
+        <button id="btnNo" type="button"
+          class="absolute left-[62%] top-[70%] min-w-[44px] min-h-[44px] px-6 py-3 rounded-full bg-white/20 border border-white/40 text-white font-semibold">
+          No
+        </button>
+      </div>
+
+      <p class="mt-8 text-xs text-white/70">Psst… inténtalo, a ver si logras tocar el "No" 😏</p>
+    </div>
+
+    <div id="celebration-view" class="hidden">
+      <p class="text-6xl mb-4">🎉💖🎉</p>
+      <h2 class="text-[clamp(1.4rem,6vw,2rem)] font-bold leading-tight break-words">¡{{partner_name}} dijo que sí!</h2>
+      <section class="mt-6 rounded-3xl bg-white text-slate-800 p-6 text-left leading-relaxed shadow-lg break-words [overflow-wrap:anywhere]">
+        <p class="whitespace-pre-line">{{message}}</p>
+        <p class="mt-4 text-right text-rose-600 font-semibold break-words">— {{your_name}}</p>
+      </section>
+    </div>
+
+    {{{ad_slot}}}
+  </main>
+
+  <script nonce="{{{nonce}}}">
+    (function () {
+      var arena = document.getElementById('arena');
+      var btnNo = document.getElementById('btnNo');
+      var btnYes = document.getElementById('btnYes');
+      var questionView = document.getElementById('question-view');
+      var celebrationView = document.getElementById('celebration-view');
+      var escapes = 0;
+      var maxYesScale = 1.9;
+      var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      function escapeNo() {
+        escapes++;
+        var arenaRect = arena.getBoundingClientRect();
+        var btnRect = btnNo.getBoundingClientRect();
+        var maxX = Math.max(0, arenaRect.width - btnRect.width);
+        var maxY = Math.max(0, arenaRect.height - btnRect.height);
+        var x = Math.random() * maxX;
+        var y = Math.random() * maxY;
+        btnNo.style.left = x + 'px';
+        btnNo.style.top = y + 'px';
+
+        // Tras varios intentos, "No" se hace visiblemente chiquito (parte del chiste, sigue siendo >=44px táctil real gracias al padding invisible)
+        if (escapes >= 3) {
+          var shrink = Math.min(escapes - 2, 4);
+          btnNo.style.fontSize = Math.max(10, 14 - shrink * 1.5) + 'px';
+          btnNo.style.transform = 'scale(' + Math.max(0.55, 1 - shrink * 0.1) + ')';
+        }
+
+        var yesScale = Math.min(maxYesScale, 1 + escapes * 0.15);
+        btnYes.style.transform = 'translate(-50%, -50%) scale(' + yesScale + ')';
+      }
+
+      btnNo.addEventListener('click', function (e) {
+        e.preventDefault();
+        escapeNo();
+      });
+      btnNo.addEventListener('pointerdown', function (e) {
+        e.preventDefault();
+        escapeNo();
+      });
+
+      // Si el puntero se acerca mucho (hover con mouse), también escapa
+      arena.addEventListener('pointermove', function (e) {
+        if (e.pointerType !== 'mouse') return;
+        var r = btnNo.getBoundingClientRect();
+        var cx = r.left + r.width / 2;
+        var cy = r.top + r.height / 2;
+        var dist = Math.hypot(e.clientX - cx, e.clientY - cy);
+        if (dist < 60) escapeNo();
+      });
+
+      function celebrate() {
+        questionView.classList.add('hidden');
+        celebrationView.classList.remove('hidden');
+        if (reduceMotion) return;
+        for (var i = 0; i < 40; i++) {
+          (function () {
+            var c = document.createElement('span');
+            c.className = 'confetti';
+            c.textContent = ['🎉', '💖', '✨', '💗', '🎊'][Math.floor(Math.random() * 5)];
+            c.style.left = Math.random() * 100 + 'vw';
+            c.style.fontSize = 14 + Math.random() * 22 + 'px';
+            c.style.animationDuration = 2.5 + Math.random() * 2.5 + 's';
+            document.body.appendChild(c);
+            setTimeout(function () { c.remove(); }, 6000);
+          })();
+        }
+      }
+
+      btnYes.addEventListener('click', celebrate);
+
+      // Corazones flotantes de fondo
+      if (!reduceMotion) {
+        setInterval(function () {
+          var h = document.createElement('span');
+          h.className = 'heart';
+          h.textContent = ['♥', '❤', '💗'][Math.floor(Math.random() * 3)];
+          h.style.left = Math.random() * 100 + 'vw';
+          h.style.fontSize = 14 + Math.random() * 26 + 'px';
+          h.style.opacity = 0.3 + Math.random() * 0.4;
+          h.style.animationDuration = 6 + Math.random() * 6 + 's';
+          document.body.appendChild(h);
+          setTimeout(function () { h.remove(); }, 12000);
+        }, 700);
+      }
+    })();
+  </script>
+</body>
+</html>

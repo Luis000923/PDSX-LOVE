@@ -211,6 +211,6 @@ final class PaymentsTest extends TestCase
                 self::assertSame('HY000', $e->getCode() === 'HY000' ? 'HY000' : (string) $e->getCode());
             }
         }
-        self::assertSame(9, DB_SCHEMA_VERSION);
+        self::assertSame(13, DB_SCHEMA_VERSION);
     }
 }

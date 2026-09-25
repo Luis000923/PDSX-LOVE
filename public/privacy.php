@@ -7,6 +7,9 @@ require_once __DIR__ . '/../src/legal.php';
 $who = e(legal_entity());
 $contact = legal_contact_html();
 
+// Números leídos de la configuración vigente (no a fuego).
+$aliasCost = Ranking::aliasChangeCost();
+
 $sections = [
     'responsable' => ['Quién es el responsable', "
         <p><strong>$who</strong> («nosotros») opera LovePages en <strong>pdsx.org/love</strong>, una plataforma para crear páginas web personalizadas para parejas. Esta política explica qué datos personales tratamos, para qué y qué derechos tienes.</p>
@@ -45,6 +48,28 @@ $sections = [
         </ul>
         <p>Podemos revelar información si una autoridad competente lo exige conforme a la ley. Tus páginas son accesibles para cualquiera que tenga su enlace; no aparecen en buscadores (se marcan con <em>noindex</em>), pero compartir el enlace es decisión tuya.</p>
         <p>Algunos de estos proveedores pueden tratar datos fuera de El Salvador; en ese caso aplican las salvaguardas contractuales de cada proveedor.</p>'],
+
+    'html-propio' => ['HTML propio y fotos que subes', '
+        <p>Si subes un archivo HTML (o un .zip) o fotos, guardamos ese contenido para servirte tu página, y por cada subida de HTML propio registramos el <strong>hash (huella) y el tamaño del archivo y la fecha</strong> para controlar el cupo mensual y prevenir abusos. Un análisis automático revisa el archivo al subirlo.</p>
+        <ul>
+          <li>Tu HTML se sirve <strong>aislado</strong>: no tiene acceso a tu sesión, cookies ni datos de tu cuenta.</li>
+          <li>El HTML y sus recursos se eliminan al borrar la página o la cuenta; el registro de subidas (hash, tamaño, fecha) se elimina con la cuenta.</li>
+          <li>Tus plantillas subidas son <strong>privadas</strong>: mientras lo sean, solo se usan para servirte tus páginas.</li>
+          <li>Si <strong>autorizas su publicación</strong> con «Publicar en la Galería», el contenido de esa plantilla pasa a ser visible para otros usuarios; por eso <strong>no debe contener datos personales</strong> ni contenido de terceros. Ver <a href="' . e(url('terms.php#html-propio')) . '">HTML propio y fotos de los usuarios</a>.</li>
+        </ul>'],
+
+    'programas' => ['Rankings, premios y programa de creadores', "
+        <p>Para el <strong>Top de donadores</strong>, los <strong>premios</strong> y el <strong>programa de creadores</strong> (ver <a href=\"" . e(url('terms.php#rankings-premios')) . "\">Rankings y premios</a> y <a href=\"" . e(url('terms.php#creadores')) . "\">Programa de creadores</a> en los Términos) tratamos estos datos:</p>
+        <ul>
+          <li><strong>Alias público</strong> (que eliges al registrarte o después, único por cuenta): se muestra en el Top de donadores <em>solo si activas esa opción</em> y, si publicas plantillas, como <strong>autor</strong> de las mismas y en «Colaboradores destacados». Nunca mostramos tu correo.</li>
+          <li><strong>Total de apoyo agregado</strong> (suma de tus pagos reales cumplidos por periodo) para calcular los rankings y los hitos; no se publica el detalle de tus pagos.</li>
+          <li><strong>Libro de ganancias de creador</strong> (qué plantilla se usó, cuántas monedas correspondieron y su estado) y el libro de movimientos de monedas.</li>
+          <li><strong>Insignias y concesiones de premios</strong> (monedas o mejoras temporales de plan otorgadas), con su fecha, para no otorgarlas dos veces.</li>
+          <li><strong>Plantillas que envías</strong> (archivo, miniatura, descripción, precio propuesto, estado de revisión y nota del revisor).</li>
+        </ul>
+        <p><strong>Base y finalidad:</strong> ejecutar el programa que solicitas al participar, mantener la integridad de los rankings y los premios y prevenir fraude. <strong>Solo se publica lo que tú activas o autorizas</strong> (mostrar tu alias en el ranking, publicar una plantilla con tu alias como autor).</p>
+        <p><strong>Retención:</strong> mientras tu cuenta esté activa y, para el libro de ganancias y premios, el tiempo necesario para evitar duplicados y fraudes; se eliminan con la cuenta.</p>
+        <p><strong>Cómo revocar o eliminar:</strong> puedes <strong>ocultar tu alias del ranking</strong> cuando quieras (es gratis) desde <a href=\"" . e(url('profile.php#alias')) . "\">tu perfil</a>; cambiar un alias existente cuesta " . (int) $aliasCost . " monedas. Puedes <strong>retirar tus plantillas</strong> del catálogo desde «Mis plantillas públicas» (las páginas ya creadas por otras personas siguen hasta su vencimiento). Para eliminar tu alias, tus plantillas o tu cuenta escribe a $contact.</p>"],
 
     'conservacion' => ['Cuánto tiempo los conservamos', '
         <ul>

@@ -24,6 +24,8 @@ phpstan.neon
 *.sql.gz
 public/assets/thumbs/*
 public/assets/tpl/*
+public/uploads/*
+storage/*
 lp-shot
 ux-*
 crear

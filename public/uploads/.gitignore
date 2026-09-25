@@ -1,0 +1,4 @@
+# Fotos subidas en runtime; se versionan solo las reglas del directorio.
+*
+!.gitignore
+!.htaccess

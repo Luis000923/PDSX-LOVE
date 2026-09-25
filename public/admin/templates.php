@@ -8,7 +8,7 @@ Admin::guard();
 $pdo = db();
 
 $errors = [];
-$form   = ['name' => '', 'slug' => '', 'description' => '', 'price_usd' => '0.00', 'price_coins' => '0', 'is_premium' => '0', 'kind' => 'html', 'category' => 'romantico'];
+$form   = ['name' => '', 'slug' => '', 'description' => '', 'price_usd' => '0.00', 'price_coins' => '0', 'is_premium' => '0', 'kind' => 'html', 'category' => 'romantico', 'image_spec' => ''];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_post();                                   // 405 si no es POST + CSRF obligatorio
@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // ---- Acciones rápidas sobre una plantilla existente -------------------
     if (in_array($action, ['toggle_premium', 'toggle_active', 'delete'], true)) {
         $id = (int) ($_POST['id'] ?? 0);
-        $st = $pdo->prepare('SELECT * FROM templates WHERE id = ?');
+        $st = $pdo->prepare("SELECT * FROM templates WHERE id = ? AND kind NOT IN ('user', 'utpl')");
         $st->execute([$id]);
         $tpl = $st->fetch();
 
@@ -68,6 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $form['price_usd']   = (string) ($_POST['price_usd'] ?? '0');
         $form['price_coins'] = (string) ($_POST['price_coins'] ?? '0');
         $form['is_premium']  = !empty($_POST['is_premium']) ? '1' : '0';
+        $form['membership_unlocks'] = !empty($_POST['membership_unlocks']) ? '1' : '0';
         $form['kind']        = ($_POST['kind'] ?? '') === 'php' ? 'php' : 'html';
         $form['category']    = array_key_exists((string) ($_POST['category'] ?? ''), Template::CATEGORIES) ? (string) $_POST['category'] : 'romantico';
         $isPhp = $form['kind'] === 'php';
@@ -94,6 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errors[] = 'El precio debe ser un monto en USD, hasta 999.99 con 2 decimales (0 = sin compra individual).';
         }
 
+        $imageSpec = null;   // JSON normalizado que se guarda en templates.image_spec
         $html = '';
         $zipTmp = '';
         if ($isPhp) {
@@ -104,6 +106,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errors[] = 'La plantilla PHP debe subirse como archivo .zip.';
             } else {
                 $zipTmp = (string) $file['tmp_name'];
+                // Fotos que pide la plantilla: manifest.json en la raíz del zip, clave `images`.
+                $manifest = PhpTemplate::manifestFromZip($zipTmp);
+                if ($manifest !== null) {
+                    $imageSpec = TemplateImages::specFromManifest($manifest, $specErr);
+                    if ($specErr !== null) {
+                        $errors[] = $specErr;
+                    }
+                }
             }
         } else {
             $file = $_FILES['html'] ?? ['error' => UPLOAD_ERR_NO_FILE];
@@ -112,6 +122,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $html = (string) file_get_contents((string) $file['tmp_name'], false, null, 0, Admin::MAX_TEMPLATE_BYTES + 1);
                 $errors = array_merge($errors, Admin::validateTemplateHtml($html));
+            }
+            $form['image_spec'] = trim((string) ($_POST['image_spec'] ?? ''));
+            if ($form['image_spec'] !== '') {
+                if ($specErr = TemplateImages::validate($form['image_spec'])) {
+                    $errors[] = 'Fotos que pide: ' . $specErr;
+                } else {
+                    $imageSpec = $form['image_spec'];
+                }
             }
         }
 
@@ -147,11 +165,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     Admin::writeTemplateFile($form['slug'] . '.html', $html);
                     $fileCol = $form['slug'] . '.html';
                 }
-                $pdo->prepare('INSERT INTO templates (slug, name, kind, category, file, description, price_usd, price_coins, thumbnail, is_premium, is_active)
-                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)')
+                $pdo->prepare('INSERT INTO templates (slug, name, kind, category, file, description, price_usd, price_coins, thumbnail, is_premium, membership_unlocks, is_active, image_spec)
+                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)')
                     ->execute([
                         $form['slug'], $form['name'], $form['kind'], $form['category'], $fileCol,
-                        $form['description'], (string) $price, (int) $coins, $thumb, (int) $form['is_premium'],
+                        $form['description'], (string) $price, (int) $coins, $thumb, (int) $form['is_premium'], (int) $form['membership_unlocks'], $imageSpec,
                     ]);
                 Admin::log('template.create', $form['slug']);
                 flash("Plantilla «{$form['name']}» creada.");
@@ -172,7 +190,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $templates = $pdo->query(
     'SELECT t.*, (SELECT COUNT(*) FROM user_sites s WHERE s.template_id = t.id) AS sites
-       FROM templates t ORDER BY t.is_premium, t.id'
+       FROM templates t WHERE t.kind NOT IN (\'user\', \'utpl\') ORDER BY t.is_premium, t.id'
 )->fetchAll();
 
 $vars = implode(', ', array_map(static fn(string $f): string => '{{' . $f . '}}', array_merge(array_keys(Template::FIELDS), ['days_together'])));
@@ -289,9 +307,12 @@ admin_errors($errors);
       <input id="price_usd" name="price_usd" type="number" min="0" max="999.99" step="0.01" inputmode="decimal" class="<?= ADMIN_INPUT_CLS ?>" value="<?= e($form['price_usd']) ?>">
       <p class="text-xs text-slate-500 mt-1">0 = solo con membresía. Mayor que 0 = también se puede comprar suelta.</p>
     </div>
-    <div class="flex items-end">
+    <div class="flex items-end gap-6">
       <label class="flex items-center gap-2 text-sm font-semibold">
         <input type="checkbox" name="is_premium" value="1" <?= $form['is_premium'] === '1' ? 'checked' : '' ?>> Plantilla premium
+      </label>
+      <label class="flex items-center gap-2 text-sm font-semibold">
+        <input type="checkbox" name="membership_unlocks" value="1" <?= $form['membership_unlocks'] === '1' ? 'checked' : '' ?>> Cupo mensual
       </label>
     </div>
     <div>
@@ -301,6 +322,11 @@ admin_errors($errors);
     <div>
       <label class="block text-sm font-semibold mb-1" for="bundle">Carpeta PHP en .zip <span class="font-normal text-slate-500">(tipo PHP)</span></label>
       <input id="bundle" name="bundle" type="file" accept=".zip,application/zip" class="<?= ADMIN_INPUT_CLS ?>">
+    </div>
+    <div class="sm:col-span-2">
+      <label class="block text-sm font-semibold mb-1" for="image_spec">Fotos que pide (JSON) <span class="font-normal text-slate-500">(opcional; tipo HTML. En PHP va en <code>manifest.json</code>, clave <code>images</code>)</span></label>
+      <textarea id="image_spec" name="image_spec" rows="4" spellcheck="false" class="<?= ADMIN_INPUT_CLS ?> font-mono text-xs" placeholder='{"repeat":{"prefix":"foto","label":"Foto {n}","min":0,"max":5}}'><?= e($form['image_spec']) ?></textarea>
+      <p class="text-xs text-slate-500 mt-1">Marcadores: <code>{{img_&lt;clave&gt;}}</code> y <code>{{img_count}}</code>. Ver docs/IMAGENES.md.</p>
     </div>
     <div>
       <label class="block text-sm font-semibold mb-1" for="thumbnail">Miniatura <span class="font-normal text-slate-500">(opcional)</span></label>

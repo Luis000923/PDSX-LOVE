@@ -14,6 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $adsHtml      = trim((string) ($_POST['ads_html'] ?? ''));
     $announcement = trim((string) ($_POST['announcement_text'] ?? ''));
     $price        = trim((string) ($_POST['premium_price_usd'] ?? ''));
+    $aliasCost    = trim((string) ($_POST['alias_change_cost'] ?? ''));
 
     if ($adsHtml !== '') {
         $errors = array_merge($errors, Admin::validateAdHtml($adsHtml));
@@ -25,6 +26,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($price !== '' && $priceCents === null) {
         $errors[] = 'El precio Premium debe ser un monto en USD entre 0.01 y 99999.99, con hasta 2 decimales.';
     }
+    if ($aliasCost !== '' && (!ctype_digit($aliasCost) || (int) $aliasCost > 10000)) {
+        $errors[] = 'El costo de cambiar el alias debe ser un entero entre 0 y 10000 monedas (vacío = valor por defecto).';
+    }
     if (!empty($_POST['announcement_enabled']) && $announcement === '') {
         $errors[] = 'No puedes activar el aviso global sin texto.';
     }
@@ -35,7 +39,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         Admin::setSetting('announcement_enabled', !empty($_POST['announcement_enabled']) ? '1' : '0');
         Admin::setSetting('announcement_text', $announcement);
         Admin::setSetting('premium_price_usd', $priceCents === null ? '' : wompi_format_usd($priceCents));
-        Admin::log('settings.update', 'anuncios y precio');
+        Admin::setSetting('alias_change_cost', $aliasCost);
+        Admin::log('settings.update', 'anuncios, precio y costo de alias');
         flash('Ajustes guardados.');
         redirect('admin/settings.php');
     }
@@ -100,6 +105,17 @@ admin_errors($errors);
       <input id="premium_price_usd" name="premium_price_usd" type="number" inputmode="decimal" min="0.01" max="99999.99" step="0.01"
              class="<?= ADMIN_INPUT_CLS ?>" value="<?= e($val('premium_price_usd')) ?>" placeholder="<?= e($envPrice) ?>">
       <p class="<?= $HELP ?>">Vacío = usar el valor por defecto del servidor ($<?= e($envPrice) ?>).</p>
+    </div>
+  </section>
+
+  <section class="<?= ADMIN_CARD_CLS ?>" aria-labelledby="h-alias">
+    <h2 id="h-alias" class="<?= $H2 ?>">Alias público</h2>
+    <p class="<?= $HELP ?> mb-4">Se pide al registrarse y se muestra en el Top de donadores. Elegir el primer alias y ocultarlo del ranking siempre son gratis.</p>
+    <div class="max-w-xs">
+      <label class="<?= $LBL ?>" for="alias_change_cost">Costo de cambiarlo (monedas)</label>
+      <input id="alias_change_cost" name="alias_change_cost" type="number" inputmode="numeric" min="0" max="10000" step="1"
+             class="<?= ADMIN_INPUT_CLS ?>" value="<?= e($val('alias_change_cost')) ?>" placeholder="<?= Ranking::DEFAULT_ALIAS_CHANGE_COST ?>">
+      <p class="<?= $HELP ?>">Vacío = <?= Ranking::DEFAULT_ALIAS_CHANGE_COST ?> monedas. Pon 0 para que sea gratis.</p>
     </div>
   </section>
 

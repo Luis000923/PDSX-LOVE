@@ -8,9 +8,9 @@ $sortKey = is_string($_GET['sort'] ?? null) && in_array($_GET['sort'], ['popular
 $order = ['popular' => 'uses DESC, t.id DESC', 'new' => 't.id DESC', 'price' => 't.price_usd ASC, t.is_premium ASC, t.id DESC'][$sortKey];
 $q = is_string($_GET['q'] ?? null) ? mb_substr(trim($_GET['q']), 0, 50) : '';
 
-$sql = 'SELECT t.id, t.slug, t.name, t.description, t.thumbnail, t.kind, t.category, t.is_premium, t.price_usd,
+$sql = 'SELECT t.id, t.slug, t.name, t.description, t.thumbnail, t.kind, t.category, t.is_premium, t.price_usd, t.price_coins, t.membership_unlocks, t.credit_alias,
                (SELECT COUNT(*) FROM user_sites s WHERE s.template_id = t.id) AS uses
-          FROM templates t WHERE t.is_active = 1' . ($cat !== '' ? ' AND t.category = ?' : '')
+          FROM templates t WHERE ' . Creators::PUBLIC_WHERE . ($cat !== '' ? ' AND t.category = ?' : '')
           . ($q !== '' ? " AND (t.name LIKE ? ESCAPE '!' OR t.description LIKE ? ESCAPE '!')" : '') . " ORDER BY $order";
 $params = $cat !== '' ? [$cat] : [];
 if ($q !== '') {
@@ -42,6 +42,7 @@ page_start('Galería de plantillas', 'max-w-5xl');
     <h1 class="text-3xl font-bold tracking-tight">Galería de plantillas</h1>
     <p class="mt-1 text-lg font-semibold text-rose-600">Elige una plantilla y crea tu página de amor</p>
     <p class="mt-2 text-slate-600">Pruébala, personalízala y mándasela a esa persona especial.</p>
+    <p class="mt-3 text-sm text-slate-500">¿Tienes tu propio diseño? <a class="font-semibold text-rose-700 underline underline-offset-2 hover:text-rose-800" href="<?= e(url($user ? 'upload_html.php' : 'register.php')) ?>">Sube tu propio HTML</a></p>
     <a href="#plantillas" class="mt-5 inline-flex items-center justify-center min-h-[44px] px-8 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-600 focus-visible:ring-offset-2">Ver plantillas</a>
   </div>
   <img src="<?= e(url('assets/img/paginas/hero-galeria.svg')) ?>" alt="" width="320" height="200" loading="lazy" class="hidden md:block justify-self-end w-full max-w-xs h-auto">
@@ -81,11 +82,20 @@ page_start('Galería de plantillas', 'max-w-5xl');
 <section class="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
   <?php foreach ($templates as $t):
       $cents = Access::priceInCents($t);
-      $free  = !Access::isPaid($t);
+      $coins = max(0, (int) ($t['price_coins'] ?? 0));
+      $paid  = Access::isPaid($t);
+      $free  = !$paid && $coins === 0;
+      // "Solo monedas": no es premium ni tiene precio en USD, pero cuesta monedas al usarla (nunca bloqueada).
+      $coinOnly = !$paid && $coins > 0;
+      // "Membresía con cupo": la membresía la cubre hasta agotar su cupo mensual; si no, se usa pagando monedas.
+      $quota = $paid && (int) ($t['membership_unlocks'] ?? 0) === 1 && $coins > 0;
       $mine  = $user && Access::canUse($user, $t, $owned);
-      $locked = !$free && !$mine;
-      $label = $free ? 'Gratis' : ($mine ? 'Desbloqueada' : ($cents > 0 ? '$' . wompi_format_usd($cents) : 'Membresía'));
-      $badge = $free || $mine ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800';
+      $locked = !$free && !$coinOnly && !$quota && !$mine;
+      $label = $free ? 'Gratis'
+          : ($coinOnly ? $coins . ' monedas'
+          : ($quota ? 'Membresía'
+          : ($mine ? 'Desbloqueada' : ($cents > 0 ? '$' . wompi_format_usd($cents) : 'Membresía'))));
+      $badge = $free || (!$quota && !$coinOnly && $mine) ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800';
       $prev  = e(url('preview.php?t=' . rawurlencode((string) $t['slug']))); ?>
     <article class="group rounded-2xl bg-white border border-rose-100 overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-0.5 transition flex flex-col">
       <a href="<?= $prev ?>" target="_blank" rel="noopener" class="relative block focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rose-600" aria-label="Vista previa de <?= e($t['name']) ?>">
@@ -100,10 +110,17 @@ page_start('Galería de plantillas', 'max-w-5xl');
       <div class="p-4 flex flex-col flex-1">
         <p class="text-xs font-semibold uppercase tracking-wide text-rose-600"><?= e(Template::CATEGORIES[$t['category']] ?? '') ?></p>
         <h2 class="mt-0.5 font-semibold text-lg leading-snug"><?= e($t['name']) ?></h2>
+        <?php if ($t['kind'] === 'utpl' && $t['credit_alias']): ?><p class="text-xs text-slate-500">Por <?= e((string) $t['credit_alias']) ?></p><?php endif; ?>
         <?php if ($t['description']): ?><p class="mt-1 text-sm text-slate-600 line-clamp-2"><?= e($t['description']) ?></p><?php endif; ?>
-        <p class="mt-2 text-xs text-slate-500">
-          <?= $locked ? ($cents > 0 ? 'Compra suelta o con membresía · ' : 'Con membresía · ') : '' ?><?= (int) $t['uses'] ?> página<?= (int) $t['uses'] === 1 ? '' : 's' ?> creada<?= (int) $t['uses'] === 1 ? '' : 's' ?>
+        <?php // Precio siempre visible, también en las plantillas de membresía (con su valor en monedas). ?>
+        <p class="mt-2 text-sm font-semibold text-slate-900">
+          <?php if ($free): ?>Gratis
+          <?php elseif ($coinOnly): ?><?= $coins ?> monedas
+          <?php elseif ($quota): ?><?= $coins ?> monedas <span class="font-normal text-slate-500">· gratis con el cupo de tu membresía</span>
+          <?php elseif ($cents > 0): ?>$<?= e(wompi_format_usd($cents)) ?> USD <span class="font-normal text-slate-500">· o con membresía</span>
+          <?php else: ?>Con membresía<?php endif; ?>
         </p>
+        <p class="mt-1 text-xs text-slate-500"><?= (int) $t['uses'] ?> página<?= (int) $t['uses'] === 1 ? '' : 's' ?> creada<?= (int) $t['uses'] === 1 ? '' : 's' ?></p>
         <div class="mt-auto pt-4 grid grid-cols-2 gap-2">
           <a href="<?= $prev ?>" target="_blank" rel="noopener"
              class="inline-flex items-center justify-center gap-1.5 min-h-[44px] rounded-xl border border-rose-300 text-rose-700 font-semibold text-sm hover:bg-rose-50 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-600"><?= $ico('ico-eye', 18) ?>Vista previa</a>

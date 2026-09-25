@@ -255,6 +255,31 @@ final class PhpTemplate
     }
 
     /**
+     * Contenido de manifest.json en la RAÍZ del zip (máx. 16 KiB), o null si no existe.
+     * Solo lee; la validación de `images` la hace TemplateImages.
+     */
+    public static function manifestFromZip(string $zipPath): ?string
+    {
+        if (!class_exists(ZipArchive::class)) {
+            return null;
+        }
+        $zip = new ZipArchive();
+        if ($zip->open($zipPath) !== true) {
+            return null;
+        }
+        try {
+            $st = $zip->statName('manifest.json');
+            if ($st === false || (int) $st['size'] > 16384) {
+                return null;
+            }
+            $raw = $zip->getFromName('manifest.json', 16385);
+            return is_string($raw) && strlen($raw) <= 16384 ? $raw : null;
+        } finally {
+            $zip->close();
+        }
+    }
+
+    /**
      * Lee y comprueba todas las entradas. Devuelve [ruta => contenido, errores].
      *
      * @return array{0:array<string,string>,1:list<string>}
@@ -409,7 +434,7 @@ final class PhpTemplate
      * Ejecuta templates/php/<slug>/index.php.
      *
      * @param array<string,string> $data datos de usuario CRUDOS (aquí se escapan)
-     * @param array<string,string> $raw  valores de confianza del servidor: nonce, ad_slot
+     * @param array<string,mixed> $raw  valores de confianza del servidor: nonce, ad_slot, images (clave => URL)
      */
     public static function render(string $slug, array $data, array $raw = []): string
     {
@@ -429,6 +454,15 @@ final class PhpTemplate
             $t[$field] = $field === 'message' ? nl2br($v, false) : $v;
         }
         $t['days_together'] = (string) Template::daysTogether((string) ($data['start_date'] ?? ''));
+
+        // Fotos de la página: clave => URL (ya generadas por el servidor; se revalidan y escapan aquí).
+        $t['images'] = [];
+        foreach (is_array($raw['images'] ?? null) ? $raw['images'] : [] as $k => $u) {
+            if (is_string($k) && is_string($u) && preg_match(TemplateImages::KEY_RE, $k)) {
+                $t['images'][$k] = htmlspecialchars($u, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            }
+        }
+        $t['image_count'] = count($t['images']);
 
         $nonce  = (string) ($raw['nonce'] ?? '');
         $adSlot = (string) ($raw['ad_slot'] ?? '');

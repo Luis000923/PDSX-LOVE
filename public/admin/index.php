@@ -6,6 +6,7 @@ require ROOT . '/src/admin_layout.php';
 /** Dashboard de logística: cifras del negocio. Solo lectura. */
 Admin::guard();
 $pdo = db();
+try { Awards::closePendingMonths($pdo); } catch (Throwable $e) { error_log('awards: ' . $e->getMessage()); }   // cierre perezoso de meses del top
 
 $scalar = static function (string $sql, array $args = []) use ($pdo): int {
     $st = $pdo->prepare($sql);
@@ -127,6 +128,9 @@ admin_page_start('Resumen', 'index', 'Cómo va el negocio hoy, en hora de El Sal
   <?= admin_stat('Usuarios', number_format($users), '+' . $newUsers . ' en los últimos 7 días', 'users', 'blue') ?>
   <?= admin_stat('Monedas en circulación', number_format($coins), 'Suma de saldos de todos los usuarios', 'coins', 'violet') ?>
   <?= admin_stat('Páginas activas', number_format($sitesActive), $sitesMonth . ' creadas este mes', 'pages', 'green') ?>
+  <?php $creatorsPending = Creators::pendingCount(); if ($creatorsPending > 0): ?>
+    <a href="<?= e(url('admin/creators.php')) ?>" class="block rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"><?= admin_stat('Plantillas por revisar', (string) $creatorsPending, 'Ir a la cola de creadores', 'pages', 'amber') ?></a>
+  <?php endif; ?>
   <?= admin_stat('Por vencer en 48 h', (string) $sitesSoon, $sitesSoon > 0 ? 'Buen momento para avisar y ofrecer renovar' : 'Ninguna página vence pronto', 'pages', $sitesSoon > 0 ? 'amber' : 'slate') ?>
   <div class="<?= ADMIN_CARD_CLS ?> sm:col-span-2">
     <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Membresías vigentes</p>

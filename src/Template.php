@@ -10,6 +10,9 @@ declare(strict_types=1);
  *
  * Los datos de usuario nunca se interpretan como plantilla: un solo pase de regex.
  */
+require_once __DIR__ . '/ImageStore.php';
+require_once __DIR__ . '/TemplateImages.php';
+
 final class Template
 {
     /** Campos editables por el usuario => longitud máxima. */
@@ -32,9 +35,15 @@ final class Template
     /** Renderiza según el tipo de plantilla (fila de `templates`): html con {{campos}} o carpeta PHP aprobada. */
     public static function renderRow(array $tpl, array $data, array $raw = []): string
     {
-        return ($tpl['kind'] ?? 'html') === 'php'
-            ? PhpTemplate::render((string) $tpl['slug'], $data, $raw)
-            : self::render((string) $tpl['file'], $data, $raw);
+        // Fotos de la página (si la fila trae site_id y site_slug): clave => URL generada por el servidor.
+        if (!isset($raw['images']) && isset($tpl['site_id'], $tpl['site_slug'])) {
+            $raw['images'] = TemplateImages::forSite((int) $tpl['site_id'], (string) $tpl['site_slug']);
+        }
+        return match ($tpl['kind'] ?? 'html') {
+            'php'   => PhpTemplate::render((string) $tpl['slug'], $data, $raw),
+            'utpl'  => Creators::render((string) $tpl['slug'], $data, $raw),
+            default => self::render((string) $tpl['file'], $data, $raw),
+        };
     }
 
     /** Mezcla datos demo con parámetros opcionales (vista previa embebida): inválido/ausente conserva el demo. */
@@ -109,8 +118,42 @@ final class Template
         }
         $path = ROOT . '/templates/' . $file;
         $html = is_file($path) ? (string) file_get_contents($path) : throw new RuntimeException('Plantilla no encontrada.');
+        return self::renderString($html, $data, $raw);
+    }
 
+    /**
+     * Mismo motor que render() sobre un HTML ya leído (plantillas de usuario 'utpl'): un solo pase, valores escapados.
+     *
+     * @param array $data datos de la página (se escapan)
+     * @param array $raw  valores de confianza del servidor (imágenes, nonce...)
+     */
+    public static function renderString(string $html, array $data, array $raw = []): string
+    {
         $data['days_together'] = (string) self::daysTogether((string) ($data['start_date'] ?? ''));
+
+        // Fotos: {{img_<clave>}} (URL o vacío) y {{img_count}}. Solo URLs del servidor; nada de lo que venga en
+        // $data con prefijo img_ se respeta.
+        foreach (array_keys($data) as $k) {
+            if (str_starts_with((string) $k, 'img_')) {
+                unset($data[$k]);
+            }
+        }
+        $n = 0;
+        foreach (is_array($raw['images'] ?? null) ? $raw['images'] : [] as $k => $u) {
+            if (is_string($k) && is_string($u) && preg_match(TemplateImages::KEY_RE, $k)) {
+                $data['img_' . $k] = $u;
+                $n++;
+            }
+        }
+        $data['img_count'] = (string) $n;
+
+        // Condicionales de fotos {{#if img_x}}..{{/if}} y {{#unless img_x}}..{{/unless}}: un solo pase sobre el
+        // texto de la plantilla (confianza del servidor), sin anidar y sin evaluar nada.
+        $html = (string) preg_replace_callback(
+            '/\{\{#(if|unless)\s+(img_\w+)\s*\}\}(.*?)\{\{\/\1\}\}/s',
+            static fn(array $m): string => (($data[$m[2]] ?? '') !== '' && ($data[$m[2]] ?? '0') !== '0') === ($m[1] === 'if') ? $m[3] : '',
+            $html
+        );
 
         return (string) preg_replace_callback(
             '/\{\{\{\s*(\w+)\s*\}\}\}|\{\{\s*(\w+)\s*\}\}/',

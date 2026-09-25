@@ -22,6 +22,9 @@ final class Access
     /** Días de vida de una página sin membresía. */
     public const FREE_SITE_DAYS = 3;
 
+    /** Subidas de HTML propio por mes calendario del plan gratuito (los planes de pago: membership_tiers.html_uploads_per_month). */
+    public const FREE_MONTHLY_HTML_UPLOADS = 1;
+
     /** @return list<array<string,mixed>> niveles activos, del más bajo al más alto */
     public static function tiers(): array
     {
@@ -49,8 +52,8 @@ final class Access
         return (int) ($user['is_premium'] ?? 0) === 1 || (int) ($user['membership_tier_id'] ?? 0) > 0;
     }
 
-    /** Nivel EFECTIVO del usuario (null = gratuito, también si su plan venció). Lee la BD: no confía en la sesión. */
-    public static function userTier(array $user, ?int $now = null): ?array
+    /** Plan PRINCIPAL (comprado o asignado) vigente; null si no hay o venció. Lee la BD: no confía en la sesión. */
+    public static function mainTier(array $user, ?int $now = null): ?array
     {
         $id = (int) ($user['membership_tier_id'] ?? 0);
         if ($id === 0 || self::lapsed($user, $now)) {
@@ -61,12 +64,48 @@ final class Access
         return $st->fetch() ?: null;
     }
 
+    /**
+     * Mejora TEMPORAL vigente (premio a creadores: users.bonus_tier_id / bonus_tier_expires_at); null si no hay o venció.
+     * No es comprable ni renovable y no cuenta como «plan actual» en las pantallas de renovación (usa mainTier).
+     */
+    public static function bonusTier(array $user, ?int $now = null): ?array
+    {
+        $id = (int) ($user['bonus_tier_id'] ?? 0);
+        $exp = $user['bonus_tier_expires_at'] ?? null;
+        if ($id === 0 || $exp === null || $exp === '' || self::isExpired((string) $exp, $now)) {
+            return null;
+        }
+        $st = db()->prepare('SELECT * FROM membership_tiers WHERE id = ?');
+        $st->execute([$id]);
+        return $st->fetch() ?: null;
+    }
+
+    /**
+     * Nivel EFECTIVO del usuario (null = gratuito): el de mayor sort_order entre el plan principal vigente y la mejora
+     * temporal vigente (a igualdad gana el principal). Con la mejora vencida o sin ella, es exactamente el principal.
+     */
+    public static function userTier(array $user, ?int $now = null): ?array
+    {
+        $main = self::mainTier($user, $now);
+        $bonus = self::bonusTier($user, $now);
+        if ($bonus !== null && ($main === null || (int) $bonus['sort_order'] > (int) $main['sort_order'])) {
+            return $bonus;
+        }
+        return $main;
+    }
+
+    /** ¿Disfruta beneficios de miembro? Plan principal vigente o mejora temporal vigente. */
     public static function isMember(array $user, ?int $now = null): bool
+    {
+        return self::hasMainPlan($user, $now) || self::bonusTier($user, $now) !== null;
+    }
+
+    private static function hasMainPlan(array $user, ?int $now = null): bool
     {
         return self::hasPlanRecord($user) && !self::lapsed($user, $now);
     }
 
-    /** ¿Tuvo plan y ya venció? (para «Tu plan venció») */
+    /** ¿Tuvo plan PRINCIPAL y ya venció? (para «Tu plan venció»; la mejora temporal no cuenta) */
     public static function wasMember(array $user, ?int $now = null): bool
     {
         return self::hasPlanRecord($user) && self::lapsed($user, $now);
@@ -76,7 +115,7 @@ final class Access
     public static function membershipExpiresAt(array $user, ?int $now = null): ?string
     {
         $exp = $user['membership_expires_at'] ?? null;
-        return self::isMember($user, $now) && $exp !== null && $exp !== '' ? (string) $exp : null;
+        return self::hasMainPlan($user, $now) && $exp !== null && $exp !== '' ? (string) $exp : null;
     }
 
     /** Días restantes (hacia arriba, mín. 0); null si no hay plan efectivo o no vence. */
@@ -99,10 +138,10 @@ final class Access
         return $m === 1 ? '1 mes' : $m . ' meses';
     }
 
-    /** ¿Puede comprar/renovar este plan? Igual o superior al efectivo actual (o sin plan efectivo). */
+    /** ¿Puede comprar/renovar este plan? Igual o superior a su plan PRINCIPAL vigente (la mejora temporal no cuenta). */
     public static function canPurchaseTier(array $user, array $tier, ?int $now = null): bool
     {
-        $cur = self::userTier($user, $now);
+        $cur = self::mainTier($user, $now);
         return $cur === null || (int) $tier['sort_order'] >= (int) $cur['sort_order'];
     }
 
@@ -202,6 +241,105 @@ final class Access
     }
 
     /**
+     * Cupo mensual de plantillas "de membresía con cupo" (`templates.membership_unlocks = 1`): cuántas
+     * plantillas DISTINTAS ha desbloqueado gratis el usuario este mes calendario. Sin plan efectivo,
+     * `allowed` es 0 (el cupo es un beneficio de la membresía; sin ella se paga siempre en monedas).
+     *
+     * @return array{used:int, allowed:int, remaining:int, resets_at:string}
+     */
+    public static function templateUnlockUsage(array $user, ?int $now = null): array
+    {
+        $tier = self::userTier($user, $now);
+        $allowed = $tier !== null ? (int) ($tier['template_unlocks_per_month'] ?? 0) : 0;
+        [$from, $to] = self::monthBounds($now);
+        $st = db()->prepare('SELECT COUNT(DISTINCT template_id) FROM template_unlocks WHERE user_id = ? AND created_at >= ? AND created_at < ?');
+        $st->execute([(int) $user['id'], $from, $to]);
+        $used = (int) $st->fetchColumn();
+        return ['used' => $used, 'allowed' => $allowed, 'remaining' => max(0, $allowed - $used), 'resets_at' => $to];
+    }
+
+    /** ¿Ya desbloqueó ESTA plantilla por membresía este mes? (no consume cupo de nuevo si ya la tiene). */
+    public static function hasUnlockedTemplateThisMonth(int $userId, int $templateId, ?int $now = null): bool
+    {
+        [$from, $to] = self::monthBounds($now);
+        $st = db()->prepare('SELECT 1 FROM template_unlocks WHERE user_id = ? AND template_id = ? AND created_at >= ? AND created_at < ? LIMIT 1');
+        $st->execute([$userId, $templateId, $from, $to]);
+        return $st->fetchColumn() !== false;
+    }
+
+    /**
+     * Intenta cubrir con el cupo mensual de membresía el uso de una plantilla `membership_unlocks = 1`.
+     * Llamar dentro de la MISMA transacción de `Sites::create()`/`renew()`, antes de cobrar monedas.
+     * Si ya estaba desbloqueada este mes, o queda cupo (se registra el desbloqueo), devuelve true:
+     * el llamador NO debe cobrar monedas. Si no hay membresía o el cupo ya se agotó, devuelve false:
+     * el llamador cobra `price_coins` normalmente (fallback explícito, nunca un bloqueo duro).
+     */
+    public static function tryCoverByMembershipQuota(PDO $pdo, array $user, array $tpl, ?int $now = null): bool
+    {
+        if ((int) ($tpl['membership_unlocks'] ?? 0) !== 1) {
+            return false;
+        }
+        $uid = (int) $user['id'];
+        $tplId = (int) ($tpl['id'] ?? $tpl['template_id'] ?? 0);
+        $tier = self::userTier($user, $now);
+        if ($tier === null || $tplId === 0) {
+            return false;
+        }
+        if (self::hasUnlockedTemplateThisMonth($uid, $tplId, $now)) {
+            return true;   // ya cubierta este mes: no cuenta dos veces contra el cupo
+        }
+        // Bloquea la fila del usuario para serializar el conteo del cupo (mismo patrón que Sites::lockUser).
+        $pdo->prepare('SELECT id FROM users WHERE id = ? FOR UPDATE')->execute([$uid]);
+        if (self::templateUnlockUsage($user, $now)['remaining'] <= 0) {
+            return false;
+        }
+        $pdo->prepare('INSERT INTO template_unlocks (user_id, template_id, tier_id) VALUES (?, ?, ?)')
+            ->execute([$uid, $tplId, (int) $tier['id']]);
+        return true;
+    }
+
+    /**
+     * Cupo mensual de subidas de HTML propio (mes calendario, hora de El Salvador). Cuenta TODAS las subidas del
+     * mes contra el permiso del plan efectivo hoy (si el plan venció, vale el del plan gratuito).
+     *
+     * @return array{used:int, allowed:int, remaining:int, resets_at:string}
+     */
+    public static function htmlUploadUsage(array $user, ?int $now = null): array
+    {
+        $tier = self::userTier($user, $now);
+        $allowed = $tier !== null ? max(0, (int) ($tier['html_uploads_per_month'] ?? 0)) : self::FREE_MONTHLY_HTML_UPLOADS;
+        [$from, $to] = self::monthBounds($now);
+        $st = db()->prepare('SELECT COUNT(*) FROM html_uploads WHERE user_id = ? AND created_at >= ? AND created_at < ?');
+        $st->execute([(int) $user['id'], $from, $to]);
+        $used = (int) $st->fetchColumn();
+        return ['used' => $used, 'allowed' => $allowed, 'remaining' => max(0, $allowed - $used), 'resets_at' => $to];
+    }
+
+    /**
+     * Registra una subida de HTML propio si queda cupo. Llamar DENTRO de la transacción de Sites::create()
+     * (bloquea la fila del usuario para que dos subidas simultáneas no superen el cupo).
+     * Devuelve el id de la subida, o null si el cupo del mes está agotado (no se registra nada).
+     */
+    public static function tryRecordHtmlUpload(PDO $pdo, array $user, string $sha256, int $bytes, ?int $now = null): ?int
+    {
+        $uid = (int) $user['id'];
+        $pdo->prepare('SELECT id FROM users WHERE id = ? FOR UPDATE')->execute([$uid]);
+        if (self::htmlUploadUsage($user, $now)['remaining'] <= 0) {
+            return null;
+        }
+        $tier = self::userTier($user, $now);
+        $pdo->prepare('INSERT INTO html_uploads (user_id, tier_id, sha256, bytes) VALUES (?, ?, ?, ?)')
+            ->execute([$uid, $tier !== null ? (int) $tier['id'] : null, $sha256, $bytes]);
+        return (int) $pdo->lastInsertId();
+    }
+
+    /** Asocia la subida registrada con la página creada (el libro de subidas se conserva aunque la página se borre). */
+    public static function linkHtmlUpload(PDO $pdo, int $uploadId, int $siteId): void
+    {
+        $pdo->prepare('UPDATE html_uploads SET site_id = ? WHERE id = ?')->execute([$siteId, $uploadId]);
+    }
+
+    /**
      * Uso del cupo de páginas. Plan gratuito: mode 'month' (creaciones del mes). Plan de pago: mode 'active'.
      *
      * @return array{mode:string, used:int, allowed:int, remaining:int, resets_at:?string}
@@ -270,7 +408,19 @@ final class Access
         if ($cost === 0) {
             return 0;
         }
-        return in_array((int) ($tpl['template_id'] ?? $tpl['id'] ?? 0), self::purchasedTemplateIds((int) $user['id']), true) ? 0 : $cost;
+        $tplId = (int) ($tpl['template_id'] ?? $tpl['id'] ?? 0);
+        if (in_array($tplId, self::purchasedTemplateIds((int) $user['id']), true)) {
+            return 0;   // comprada suelta en USD: ya incluida
+        }
+        if ((int) ($tpl['membership_unlocks'] ?? 0) === 1) {
+            // Solo un vistazo (no consume cupo): decide si HOY se cubriría por membresía.
+            // El consumo real ocurre en Access::tryCoverByMembershipQuota(), dentro de la transacción de Sites.
+            $uid = (int) $user['id'];
+            if (self::hasUnlockedTemplateThisMonth($uid, $tplId) || self::templateUnlockUsage($user)['remaining'] > 0) {
+                return 0;
+            }
+        }
+        return $cost;
     }
 
     /** Precio en centavos de una plantilla extra para este usuario (con el descuento de su nivel). */
@@ -312,10 +462,17 @@ final class Access
      */
     public static function canUse(array $user, array $tpl, array $owned): bool
     {
-        if (!self::isPaid($tpl) || self::isMember($user)) {
+        if (!self::isPaid($tpl)) {
             return true;
         }
-        return in_array((int) $tpl['id'], $owned, true);
+        if (in_array((int) $tpl['id'], $owned, true)) {
+            return true;
+        }
+        if ((int) ($tpl['membership_unlocks'] ?? 0) === 1) {
+            // Con cupo mensual: nunca queda del todo bloqueada si tiene un precio en monedas de respaldo.
+            return self::isMember($user) || (int) ($tpl['price_coins'] ?? 0) > 0;
+        }
+        return self::isMember($user);
     }
 
     /** @return list<int> */

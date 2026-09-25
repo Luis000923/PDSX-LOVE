@@ -25,6 +25,8 @@ function admin_nav_items(): array
         'Catálogo'  => [
             'templates' => ['admin/templates.php', 'Plantillas', 'templates'],
             'promos'    => ['admin/promos.php', 'Cupones', 'coupon'],
+            'awards'    => ['admin/awards.php', 'Premios', 'coins'],
+            'creators'  => ['admin/creators.php', 'Creadores', 'users'],
         ],
         'Sistema'   => [
             'settings' => ['admin/settings.php', 'Ajustes', 'settings'],

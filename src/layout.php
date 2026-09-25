@@ -30,6 +30,8 @@ HTML;
     if ($u = current_user()) {
         echo '<a class="text-slate-600" href="' . e(url('index.php')) . '">Galería</a>'
            . '<a class="text-slate-600" href="' . e(url('tienda.php')) . '">Tienda</a>'
+           . '<a class="text-slate-600" href="' . e(url('top.php')) . '">Top</a>'
+           . '<a class="text-slate-600" href="' . e(url('colaboradores.php')) . '">Creadores</a>'
            . '<a class="text-slate-600" href="' . e(url('dashboard.php')) . '">Mis páginas</a>'
            . '<a class="text-slate-600" href="' . e(url('profile.php')) . '">Perfil</a>';
         if ((int) ($u['is_admin'] ?? 0) === 1) {
@@ -38,7 +40,7 @@ HTML;
         echo '<form method="post" action="' . e(url('logout.php')) . '">' . csrf_field()
            . '<button class="text-slate-500">Salir</button></form>';
     } else {
-        echo '<a class="text-slate-600" href="' . e(url('index.php')) . '">Galería</a><a class="text-slate-600" href="' . e(url('tienda.php')) . '">Tienda</a><a class="text-slate-600" href="' . e(url('login.php')) . '">Entrar</a>';
+        echo '<a class="text-slate-600" href="' . e(url('index.php')) . '">Galería</a><a class="text-slate-600" href="' . e(url('tienda.php')) . '">Tienda</a><a class="text-slate-600" href="' . e(url('top.php')) . '">Top</a><a class="text-slate-600" href="' . e(url('colaboradores.php')) . '">Creadores</a><a class="text-slate-600" href="' . e(url('login.php')) . '">Entrar</a>';
     }
     echo '</nav></header>';
 
@@ -119,7 +121,7 @@ function premium_offer(?array $user, ?string $lastPayment = null, bool $codeOpen
 {
     $action  = e(url('checkout_wompi.php'));
     $tiers   = Access::tiers();
-    $current = $user !== null ? Access::userTier($user) : null;
+    $current = $user !== null ? Access::mainTier($user) : null;
     $rank    = (int) ($current['sort_order'] ?? 0);
     $img     = static fn (string $n, int $s, string $cls = ''): string
         => '<img src="' . e(url('assets/img/tienda/' . $n . '.svg')) . '" alt="" width="' . $s . '" height="' . $s . '" loading="lazy" class="' . $cls . '">';
@@ -168,7 +170,11 @@ function premium_offer(?array $user, ?string $lastPayment = null, bool $codeOpen
         foreach ([
             ['ico-pages', 'Hasta ' . (int) $t['max_sites'] . ' páginas activas', false],
             ['ico-clock', 'Cada página dura ' . (int) $t['site_days'] . ' días', false],
+            ['ico-pages', (int) ($t['html_uploads_per_month'] ?? 0) . ' subidas de HTML propio al mes (el plan gratuito incluye ' . Access::FREE_MONTHLY_HTML_UPLOADS . ')', false],
             ['ico-coin', (int) $t['bonus_coins'] . ' monedas de bono inicial', false],
+            (int) ($t['template_unlocks_per_month'] ?? 0) > 0
+                ? ['ico-sparkle', (int) $t['template_unlocks_per_month'] . ' plantilla' . ((int) $t['template_unlocks_per_month'] === 1 ? '' : 's') . ' de membresía al mes (luego, con monedas)', false]
+                : ['ico-sparkle', 'Plantillas de membresía siempre con monedas', true],
             $bonusPct > 0
                 ? ['ico-sparkle', '+' . $bonusPct . ' % extra de monedas en cada recarga (se suma al bono del paquete)', false]
                 : ['ico-sparkle', 'Recargas con el bono normal de cada paquete', true],

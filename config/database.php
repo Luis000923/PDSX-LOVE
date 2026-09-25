@@ -11,7 +11,7 @@ declare(strict_types=1);
  */
 
 /** Versión de esquema esperada por el código (tabla `schema_version`). */
-const DB_SCHEMA_VERSION = 9;
+const DB_SCHEMA_VERSION = 13;
 
 /** Nombre del bloqueo consultivo que serializa las migraciones entre procesos. */
 const DB_MIGRATION_LOCK = 'lovepages_schema_migration';
@@ -100,6 +100,8 @@ function db_migrate(PDO $pdo): void
 
         db_migrate_v7_tiers($pdo);
         db_migrate_v6_tiers($pdo);   // antes del esquema: su seed de planes usa las columnas nuevas y los slugs nuevos
+        db_migrate_v10_tiers($pdo);  // ídem: el seed de planes también referencia template_unlocks_per_month
+        db_migrate_v11_tiers($pdo);  // ídem: y html_uploads_per_month
 
         foreach (db_split_sql((string) file_get_contents(ROOT . '/database/schema.sql')) as $statement) {
             $pdo->exec($statement);
@@ -111,6 +113,10 @@ function db_migrate(PDO $pdo): void
         db_migrate_v7($pdo);
         db_migrate_v8($pdo, $from);
         db_migrate_v9($pdo, $from);
+        db_migrate_v10($pdo);
+        db_migrate_v11($pdo);
+        db_migrate_v12($pdo);
+        db_migrate_v13($pdo);
 
         $pdo->exec('CREATE TABLE IF NOT EXISTS schema_version (
             version    INT      NOT NULL PRIMARY KEY,
@@ -328,6 +334,241 @@ function db_migrate_v9(PDO $pdo, int $from): void
                       JOIN promos pr ON pr.code = p.promo_code
                      WHERE p.status = 'APPROVED' GROUP BY pr.id, p.user_id");
     }
+}
+
+/**
+ * Plantillas "de membresía con cupo mensual": `templates.membership_unlocks = 1` marca una
+ * plantilla premium cuyo acceso por membresía está limitado a `membership_tiers.template_unlocks_per_month`
+ * plantillas DISTINTAS por mes calendario (hora de El Salvador; ver `template_unlocks` y
+ * Access::templateUnlockUsage()); agotado el cupo (o sin membresía), se usa pagando `price_coins`.
+ * Con `membership_unlocks = 0` (valor por defecto, plantillas existentes) el comportamiento no cambia:
+ * la membresía la desbloquea sin límite, como hasta ahora.
+ */
+/**
+ * Añade `membership_tiers.template_unlocks_per_month` ANTES de reaplicar schema.sql: su INSERT de
+ * semilla ya referencia esta columna (mismo motivo que db_migrate_v7_tiers con `duration_months`).
+ */
+function db_migrate_v10_tiers(PDO $pdo): void
+{
+    $exists = $pdo->prepare('SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?');
+    $exists->execute(['membership_tiers']);
+    if ((int) $exists->fetchColumn() > 0 && !db_column_exists($pdo, 'membership_tiers', 'template_unlocks_per_month')) {
+        $pdo->exec('ALTER TABLE membership_tiers ADD COLUMN template_unlocks_per_month INT NOT NULL DEFAULT 0');
+        // Cupo inicial de los 3 planes ya sembrados (ver database/schema.sql, que ya no puede
+        // pisar este valor en actualizaciones futuras del INSERT ... ON DUPLICATE KEY).
+        $pdo->exec("UPDATE membership_tiers SET template_unlocks_per_month = CASE slug
+                        WHEN 'romantico' THEN 1 WHEN 'pareja' THEN 3 WHEN 'eterno' THEN 6 ELSE 0 END");
+    }
+}
+
+function db_migrate_v10(PDO $pdo): void
+{
+    if (!db_column_exists($pdo, 'templates', 'membership_unlocks')) {
+        $pdo->exec('ALTER TABLE templates ADD COLUMN membership_unlocks TINYINT(1) NOT NULL DEFAULT 0');
+    }
+    $pdo->exec("CREATE TABLE IF NOT EXISTS template_unlocks (
+        id          INT AUTO_INCREMENT PRIMARY KEY,
+        user_id     INT      NOT NULL,
+        template_id INT      NOT NULL,
+        tier_id     INT      NULL,
+        created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT fk_tplunlocks_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        CONSTRAINT fk_tplunlocks_tpl  FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE CASCADE,
+        INDEX idx_tplunlocks_user_month (user_id, created_at),
+        INDEX idx_tplunlocks_user_tpl (user_id, template_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+}
+
+/**
+ * Añade `membership_tiers.html_uploads_per_month` ANTES de reaplicar schema.sql (su seed la referencia).
+ * Cupo mensual de subidas de HTML propio por plan: Romántico 3, Pareja 6, Eterno 12. El plan gratuito
+ * (sin fila en esta tabla) usa la constante Access::FREE_MONTHLY_HTML_UPLOADS.
+ */
+function db_migrate_v11_tiers(PDO $pdo): void
+{
+    $exists = $pdo->prepare('SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?');
+    $exists->execute(['membership_tiers']);
+    if ((int) $exists->fetchColumn() > 0 && !db_column_exists($pdo, 'membership_tiers', 'html_uploads_per_month')) {
+        $pdo->exec('ALTER TABLE membership_tiers ADD COLUMN html_uploads_per_month INT NOT NULL DEFAULT 0');
+        $pdo->exec("UPDATE membership_tiers SET html_uploads_per_month = CASE slug
+                        WHEN 'romantico' THEN 3 WHEN 'pareja' THEN 6 WHEN 'eterno' THEN 12 ELSE 0 END");
+    }
+}
+
+/**
+ * v11: fotos de usuarios por plantilla y HTML propio de los usuarios.
+ *  - templates.image_spec: JSON con las fotos que pide la plantilla (ver TemplateImages).
+ *  - site_images: fotos procesadas de cada página (los archivos viven en public/uploads/sites/{slug}/).
+ *  - user_html_sites: metadatos del HTML propio de una página (el archivo vive FUERA del webroot, en storage/user_html/{slug}/).
+ *  - html_uploads: libro de subidas de HTML propio (cupo mensual por plan); NO se borra al borrar la página.
+ *  - Plantilla oculta 'html-propio' (kind = 'user'): la comparten todas las páginas de HTML propio.
+ */
+function db_migrate_v11(PDO $pdo): void
+{
+    if (!db_column_exists($pdo, 'templates', 'image_spec')) {
+        $pdo->exec('ALTER TABLE templates ADD COLUMN image_spec TEXT NULL');
+    }
+    $pdo->exec("CREATE TABLE IF NOT EXISTS site_images (
+        id         INT AUTO_INCREMENT PRIMARY KEY,
+        site_id    INT          NOT NULL,
+        slot       VARCHAR(40)  NOT NULL,
+        file       VARCHAR(80)  NOT NULL,
+        mime       VARCHAR(20)  NOT NULL,
+        width      INT          NOT NULL,
+        height     INT          NOT NULL,
+        bytes      INT          NOT NULL,
+        created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_site_images_slot (site_id, slot),
+        CONSTRAINT fk_site_images_site FOREIGN KEY (site_id) REFERENCES user_sites(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS user_html_sites (
+        site_id    INT          NOT NULL PRIMARY KEY,
+        sha256     CHAR(64)     NOT NULL,
+        bytes      INT          NOT NULL,
+        has_assets TINYINT(1)   NOT NULL DEFAULT 0,
+        created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT fk_user_html_site FOREIGN KEY (site_id) REFERENCES user_sites(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS html_uploads (
+        id         INT AUTO_INCREMENT PRIMARY KEY,
+        user_id    INT          NOT NULL,
+        site_id    INT          NULL,
+        tier_id    INT          NULL,
+        sha256     CHAR(64)     NOT NULL,
+        bytes      INT          NOT NULL,
+        created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_html_uploads_user_month (user_id, created_at),
+        CONSTRAINT fk_html_uploads_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $pdo->exec("INSERT IGNORE INTO templates (slug, name, kind, category, file, description, is_active)
+                VALUES ('html-propio', 'HTML propio', 'user', 'especial', 'html-propio', 'Página con HTML propio subido por el usuario.', 1)");
+    // Auto-reparación: esta fila SIEMPRE debe ser kind = 'user' y estar activa (view.php la une con is_active = 1).
+    $pdo->exec("UPDATE templates SET kind = 'user', is_active = 1 WHERE slug = 'html-propio' AND (kind <> 'user' OR is_active <> 1)");
+}
+
+/**
+ * v12: top de donadores, premios automáticos e insignias.
+ *  - users.display_name / show_in_rankings: alias público opt-in (por defecto NADIE aparece con identidad).
+ *  - idx_payments_rank (status, fulfilled_at, user_id): sirve al ranking mensual/histórico.
+ *  - awards_closed_months, user_badges, award_grants: cierre de mes, insignias y libro de concesiones (UNIQUE = idempotencia).
+ *  - settings.awards_launch_month: mes de lanzamiento (hora de El Salvador); no se premian meses anteriores.
+ */
+function db_migrate_v12(PDO $pdo): void
+{
+    if (!db_column_exists($pdo, 'users', 'display_name')) {
+        $pdo->exec('ALTER TABLE users ADD COLUMN display_name VARCHAR(30) NULL');
+    }
+    if (!db_column_exists($pdo, 'users', 'show_in_rankings')) {
+        $pdo->exec('ALTER TABLE users ADD COLUMN show_in_rankings TINYINT(1) NOT NULL DEFAULT 0');
+    }
+    $idx = $pdo->query("SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payments' AND INDEX_NAME = 'idx_payments_rank'");
+    if ($idx !== false && (int) $idx->fetchColumn() === 0) {
+        $pdo->exec('ALTER TABLE payments ADD KEY idx_payments_rank (status, fulfilled_at, user_id)');
+    }
+    $pdo->exec("CREATE TABLE IF NOT EXISTS awards_closed_months (
+        ym        CHAR(7)  NOT NULL PRIMARY KEY,
+        closed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS user_badges (
+        id         INT AUTO_INCREMENT PRIMARY KEY,
+        user_id    INT         NOT NULL,
+        badge_key  VARCHAR(40) NOT NULL,
+        period     VARCHAR(7)  NOT NULL DEFAULT '',
+        created_at DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_user_badges (user_id, badge_key, period),
+        CONSTRAINT fk_user_badges_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS award_grants (
+        id         INT AUTO_INCREMENT PRIMARY KEY,
+        user_id    INT         NOT NULL,
+        grant_key  VARCHAR(80) NOT NULL,
+        kind       VARCHAR(20) NOT NULL,
+        coins      INT         NOT NULL DEFAULT 0,
+        created_at DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_award_grants (user_id, grant_key),
+        KEY idx_award_grants_created (created_at),
+        CONSTRAINT fk_award_grants_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $launch = (new DateTimeImmutable('now', new DateTimeZone('America/El_Salvador')))->format('Y-m');
+    $pdo->prepare("INSERT IGNORE INTO settings (`key`, `value`) VALUES ('awards_launch_month', ?)")->execute([$launch]);
+}
+
+/**
+ * v13: economía de creadores. Plantillas públicas de usuario (templates.kind = 'utpl') con revisión previa,
+ * ledger de ganancias (template_earnings) y mejora temporal de plan (users.bonus_tier_*).
+ */
+function db_migrate_v13(PDO $pdo): void
+{
+    $cols = [
+        'owner_user_id' => 'INT NULL',
+        'review_status' => "VARCHAR(10) NOT NULL DEFAULT 'approved'",
+        'review_note'   => 'VARCHAR(255) NULL',
+        'credit_alias'  => 'VARCHAR(30) NULL',
+        'submitted_at'  => 'DATETIME NULL',
+        'reviewed_at'   => 'DATETIME NULL',
+        'reviewed_by'   => 'INT NULL',
+    ];
+    foreach ($cols as $c => $def) {
+        if (!db_column_exists($pdo, 'templates', $c)) {
+            $pdo->exec("ALTER TABLE templates ADD COLUMN `$c` $def");
+        }
+    }
+    $hasIdx = static function (string $table, string $name) use ($pdo): bool {
+        $st = $pdo->prepare('SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?');
+        $st->execute([$table, $name]);
+        return (int) $st->fetchColumn() > 0;
+    };
+    $hasFk = static function (string $table, string $name) use ($pdo): bool {
+        $st = $pdo->prepare("SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND CONSTRAINT_NAME = ? AND CONSTRAINT_TYPE = 'FOREIGN KEY'");
+        $st->execute([$table, $name]);
+        return (int) $st->fetchColumn() > 0;
+    };
+    if (!$hasIdx('templates', 'idx_templates_owner')) {
+        $pdo->exec('ALTER TABLE templates ADD KEY idx_templates_owner (owner_user_id, review_status)');
+    }
+    if (!$hasIdx('templates', 'idx_templates_review')) {
+        $pdo->exec('ALTER TABLE templates ADD KEY idx_templates_review (review_status, kind, is_active)');
+    }
+    if (!$hasFk('templates', 'fk_templates_owner')) {
+        $pdo->exec('ALTER TABLE templates ADD CONSTRAINT fk_templates_owner FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE SET NULL');
+    }
+    if (!$hasFk('templates', 'fk_templates_reviewer')) {
+        $pdo->exec('ALTER TABLE templates ADD CONSTRAINT fk_templates_reviewer FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL');
+    }
+    if (!db_column_exists($pdo, 'users', 'bonus_tier_id')) {
+        $pdo->exec('ALTER TABLE users ADD COLUMN bonus_tier_id INT NULL, ADD COLUMN bonus_tier_expires_at DATETIME NULL,
+                    ADD CONSTRAINT fk_users_bonus_tier FOREIGN KEY (bonus_tier_id) REFERENCES membership_tiers(id) ON DELETE SET NULL');
+    }
+    // Alias único (sin distinguir mayúsculas/tildes: colación unicode_ci). Solo si no hay duplicados previos.
+    if (!$hasIdx('users', 'uq_users_display_name')) {
+        $dups = (int) $pdo->query('SELECT COUNT(*) FROM (SELECT display_name FROM users WHERE display_name IS NOT NULL GROUP BY display_name HAVING COUNT(*) > 1) d')->fetchColumn();
+        if ($dups === 0) {
+            $pdo->exec('ALTER TABLE users ADD UNIQUE KEY uq_users_display_name (display_name)');
+        } else {
+            error_log('db_migrate_v13: hay alias duplicados en users.display_name; se omite el índice único uq_users_display_name (resuélvelos y reinicia).');
+        }
+    }
+    $pdo->exec("CREATE TABLE IF NOT EXISTS template_earnings (
+        id          INT AUTO_INCREMENT PRIMARY KEY,
+        template_id INT         NOT NULL,
+        creator_id  INT         NOT NULL,
+        buyer_id    INT         NULL,
+        site_id     INT         NULL,
+        ref         VARCHAR(80) NOT NULL,
+        kind        ENUM('coins','quota') NOT NULL,
+        base_coins  INT         NOT NULL,
+        share_coins INT         NOT NULL,
+        status      ENUM('pending','paid') NOT NULL DEFAULT 'pending',
+        created_at  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        paid_at     DATETIME    NULL,
+        UNIQUE KEY uq_earnings_ref (template_id, ref),
+        KEY idx_earnings_creator (creator_id, status),
+        KEY idx_earnings_template (template_id, created_at),
+        CONSTRAINT fk_earnings_template FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE CASCADE,
+        CONSTRAINT fk_earnings_buyer    FOREIGN KEY (buyer_id)    REFERENCES users(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $launch = (new DateTimeImmutable('now', new DateTimeZone('America/El_Salvador')))->format('Y-m');
+    $pdo->prepare("INSERT IGNORE INTO settings (`key`, `value`) VALUES ('creators_launch_month', ?)")->execute([$launch]);
 }
 
 /** ¿Existe la columna en la base actual? (para ALTER TABLE idempotentes) */

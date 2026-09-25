@@ -29,6 +29,7 @@ final class Admin
         'announcement_enabled' => '0',   // aviso global en la app
         'announcement_text'    => '',
         'premium_price_usd'    => '',    // vacío = usar PREMIUM_PRICE_USD del .env (ej. 4.99)
+        'alias_change_cost'    => '',    // monedas que cuesta CAMBIAR el alias público; vacío = Ranking::DEFAULT_ALIAS_CHANGE_COST
     ];
 
     public static function templateDir(): string
@@ -76,11 +77,13 @@ final class Admin
 
     // ----------------------------------------------------------- ajustes ---
 
+    /** @var array<string,string>|null Caché por petición; setSetting() la invalida. */
+    private static ?array $settingsCache = null;
+
     /** @return array<string,string> Ajustes con los valores por defecto ya aplicados. */
     public static function settings(): array
     {
-        static $cache = null;
-        if ($cache === null) {
+        if (self::$settingsCache === null) {
             $cache = self::SETTINGS;
             try {
                 foreach (db()->query('SELECT `key`, `value` FROM settings')->fetchAll() as $row) {
@@ -92,8 +95,9 @@ final class Admin
                 // Los ajustes son accesorios: si la tabla falla, el sitio sigue con los valores por defecto.
                 error_log('admin settings: ' . $e->getMessage());
             }
+            self::$settingsCache = $cache;
         }
-        return $cache;
+        return self::$settingsCache;
     }
 
     public static function setting(string $key): string
@@ -111,6 +115,7 @@ final class Admin
         db()->prepare('INSERT INTO settings (`key`, `value`, updated_at) VALUES (?, ?, UTC_TIMESTAMP())
                        ON DUPLICATE KEY UPDATE `value` = ?, updated_at = UTC_TIMESTAMP()')
             ->execute([$key, $value, $value]);
+        self::$settingsCache = null;
     }
 
     // -------------------------------------------------------- plantillas ---
@@ -176,7 +181,7 @@ final class Admin
                 if (!in_array($m[1], self::RAW_PLACEHOLDERS, true)) {
                     $errors[] = "Marcador crudo no permitido: {{{{$m[1]}}}}. Solo: " . implode(', ', self::RAW_PLACEHOLDERS) . '.';
                 }
-            } elseif (!in_array($m[2], $allowedVars, true)) {
+            } elseif (!in_array($m[2], $allowedVars, true) && !preg_match('/^img_(count|[a-z][a-z0-9_]{0,29})$/D', $m[2])) {   // fotos: {{img_<clave>}}, {{img_count}}
                 $errors[] = "Variable desconocida: {{{$m[2]}}}. Disponibles: " . implode(', ', $allowedVars) . '.';
             }
         }

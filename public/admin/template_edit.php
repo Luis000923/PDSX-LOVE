@@ -8,7 +8,7 @@ Admin::guard();
 $pdo = db();
 
 $id = (int) ($_GET['id'] ?? $_POST['id'] ?? 0);
-$st = $pdo->prepare('SELECT * FROM templates WHERE id = ?');
+$st = $pdo->prepare("SELECT * FROM templates WHERE id = ? AND kind NOT IN ('user', 'utpl')");
 $st->execute([$id]);
 $tpl = $st->fetch();
 
@@ -25,8 +25,10 @@ $form = [
     'price_usd'   => number_format((float) $tpl['price_usd'], 2, '.', ''),
     'price_coins' => (string) (int) $tpl['price_coins'],
     'is_premium'  => (string) (int) $tpl['is_premium'],
+    'membership_unlocks' => (string) (int) $tpl['membership_unlocks'],
     'is_active'   => (string) (int) $tpl['is_active'],
     'category'    => (string) $tpl['category'],
+    'image_spec'  => (string) ($tpl['image_spec'] ?? ''),
 ];
 $isPhp = ($tpl['kind'] ?? 'html') === 'php';
 
@@ -38,6 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $form['price_usd']   = (string) ($_POST['price_usd'] ?? '0');
     $form['price_coins'] = (string) ($_POST['price_coins'] ?? '0');
     $form['is_premium']  = !empty($_POST['is_premium']) ? '1' : '0';
+    $form['membership_unlocks'] = !empty($_POST['membership_unlocks']) ? '1' : '0';
     $form['is_active']   = !empty($_POST['is_active']) ? '1' : '0';
     $form['category']    = array_key_exists((string) ($_POST['category'] ?? ''), Template::CATEGORIES) ? (string) $_POST['category'] : (string) $tpl['category'];
 
@@ -81,6 +84,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errors = array_merge($errors, Admin::validateTemplateHtml($newHtml));
         }
     }
+    // Fotos que pide: en HTML, el textarea; en PHP, `images` del manifest.json del zip nuevo (si trae manifest).
+    $imageSpec = ($tpl['image_spec'] ?? null) === null ? null : (string) $tpl['image_spec'];
+    if ($isPhp) {
+        $manifest = $newZip !== null ? PhpTemplate::manifestFromZip($newZip) : null;
+        if ($manifest !== null) {
+            $imageSpec = TemplateImages::specFromManifest($manifest, $specErr);
+            if ($specErr !== null) {
+                $errors[] = $specErr;
+            }
+        }
+    } else {
+        $form['image_spec'] = trim((string) ($_POST['image_spec'] ?? ''));
+        if ($specErr = TemplateImages::validate($form['image_spec'])) {
+            $errors[] = 'Fotos que pide: ' . $specErr;
+        }
+        $imageSpec = $form['image_spec'] === '' ? null : $form['image_spec'];
+    }
     if (!$errors && $newZip !== null) {
         $errors = PhpTemplate::install((string) $tpl['slug'], $newZip);   // reemplazo atómico; no toca nada si falla
     }
@@ -105,10 +125,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($newHtml !== null) {
                 Admin::writeTemplateFile((string) $tpl['file'], $newHtml);
             }
-            $pdo->prepare('UPDATE templates SET name = ?, description = ?, price_usd = ?, price_coins = ?, category = ?, thumbnail = ?, is_premium = ?, is_active = ? WHERE id = ?')
+            $pdo->prepare('UPDATE templates SET name = ?, description = ?, price_usd = ?, price_coins = ?, category = ?, thumbnail = ?, is_premium = ?, membership_unlocks = ?, is_active = ?, image_spec = ? WHERE id = ?')
                 ->execute([
                     $form['name'], $form['description'], (string) $price, (int) $coins, $form['category'], $thumb,
-                    (int) $form['is_premium'], (int) $form['is_active'], $id,
+                    (int) $form['is_premium'], (int) $form['membership_unlocks'], (int) $form['is_active'], $imageSpec, $id,
                 ]);
             Admin::log('template.update', $tpl['slug'] . ($newHtml !== null ? ' (html reemplazado)' : '') . ($newZip !== null ? ' (bundle php reemplazado)' : ''));
             flash("Plantilla «{$form['name']}» actualizada.");
@@ -149,7 +169,7 @@ admin_errors($errors);
     <div>
       <label class="block text-sm font-semibold mb-1" for="price_coins">Costo en monedas</label>
       <input id="price_coins" name="price_coins" type="number" min="0" max="100000" step="1" class="<?= ADMIN_INPUT_CLS ?>" value="<?= e($form['price_coins']) ?>">
-      <p class="text-xs text-slate-500 mt-1">Se descuenta al crear (y renovar) una página. 0 = gratis.</p>
+      <p class="text-xs text-slate-500 mt-1">Se descuenta al crear (y renovar) una página. 0 = gratis. Con «Premium» marcado, es el precio para quien no tenga cupo o membresía.</p>
     </div>
     <div>
       <label class="block text-sm font-semibold mb-1" for="category">Categoría</label>
@@ -169,6 +189,9 @@ admin_errors($errors);
         <input type="checkbox" name="is_premium" value="1" <?= $form['is_premium'] === '1' ? 'checked' : '' ?>> Premium (de paga)
       </label>
       <label class="flex items-center gap-2">
+        <input type="checkbox" name="membership_unlocks" value="1" <?= $form['membership_unlocks'] === '1' ? 'checked' : '' ?>> Cupo mensual de membresía
+      </label>
+      <label class="flex items-center gap-2">
         <input type="checkbox" name="is_active" value="1" <?= $form['is_active'] === '1' ? 'checked' : '' ?>> Activa
       </label>
       <?php if ($inUse > 0): ?>
@@ -177,6 +200,9 @@ admin_errors($errors);
         </label>
       <?php endif; ?>
     </div>
+    <?php if ($form['is_premium'] === '1'): ?>
+      <p class="sm:col-span-2 text-xs text-slate-500 -mt-2">Con «Cupo mensual» marcado, cada plan solo la desbloquea gratis hasta agotar su cupo de plantillas del mes (ajustable en <code>membership_tiers</code>); agotado, se usa pagando el costo en monedas. Sin marcar, la membresía la desbloquea sin límite (como antes).</p>
+    <?php endif; ?>
 
     <div>
       <?php if ($isPhp): ?>
@@ -197,6 +223,16 @@ admin_errors($errors);
         </label>
       <?php endif; ?>
     </div>
+
+    <?php if (!$isPhp): ?>
+    <div class="sm:col-span-2">
+      <label class="block text-sm font-semibold mb-1" for="image_spec">Fotos que pide (JSON) <span class="font-normal text-slate-500">(opcional)</span></label>
+      <textarea id="image_spec" name="image_spec" rows="5" spellcheck="false" class="<?= ADMIN_INPUT_CLS ?> font-mono text-xs"><?= e($form['image_spec']) ?></textarea>
+      <p class="text-xs text-slate-500 mt-1">Marcadores: <code>{{img_&lt;clave&gt;}}</code> y <code>{{img_count}}</code>. Ver docs/IMAGENES.md.</p>
+    </div>
+    <?php else: ?>
+      <p class="sm:col-span-2 text-xs text-slate-500">Fotos que pide: se leen de <code>manifest.json</code> (clave <code>images</code>) al reemplazar el .zip. Actual: <code><?= e($form['image_spec'] === '' ? 'ninguna' : $form['image_spec']) ?></code></p>
+    <?php endif; ?>
 
     <div class="sm:col-span-2"><button class="<?= ADMIN_BTN_CLS ?>">Guardar cambios</button></div>
   </form>

@@ -5,7 +5,7 @@ require __DIR__ . '/../../src/bootstrap.php';
 /** Previsualiza una plantilla con datos de ejemplo. Nunca toca datos reales de usuarios. */
 Admin::guard();
 
-$st = db()->prepare('SELECT file, kind, slug FROM templates WHERE id = ?');
+$st = db()->prepare("SELECT file, kind, slug FROM templates WHERE id = ? AND kind NOT IN ('user', 'utpl')");
 $st->execute([(int) ($_GET['id'] ?? 0)]);
 $row = $st->fetch();
 
@@ -15,8 +15,8 @@ if (!$row) {
 }
 
 $demo = [
-    'your_name'    => 'Ana',
-    'partner_name' => 'Luis',
+    'your_name'    => 'Tu nombre',
+    'partner_name' => 'Nombre de tu pareja',
     'start_date'   => (new DateTimeImmutable('-400 days'))->format('Y-m-d'),
     'message'      => "Este es un texto de ejemplo para previsualizar la plantilla.\nSegunda línea.",
 ];

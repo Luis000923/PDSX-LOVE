@@ -1,0 +1,11 @@
+# Hosting compartido (en Docker lo aplica docker/apache.conf). Las subidas nunca se ejecutan ni se listan.
+Options -Indexes -ExecCGI
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+<FilesMatch "(?i)\.(php\d?|phtml|phar|html?|pl|py|cgi|sh)$">
+    Require all denied
+</FilesMatch>
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+</IfModule>

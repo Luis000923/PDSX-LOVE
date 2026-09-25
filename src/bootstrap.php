@@ -42,6 +42,7 @@ require_once ROOT . '/src/PhpTemplate.php';
 require_once ROOT . '/src/Admin.php';
 require_once ROOT . '/src/Access.php';
 require_once ROOT . '/src/Coins.php';
+require_once ROOT . '/src/Creators.php';
 require_once ROOT . '/src/Sites.php';
 require_once ROOT . '/src/AdminUsers.php';
 require_once ROOT . '/src/Payments.php';
@@ -148,7 +149,7 @@ function load_session_user(): ?array
     if (empty($_SESSION['uid'])) {
         return null;
     }
-    $st = db()->prepare('SELECT id, email, password_hash, is_premium, is_admin, is_suspended, membership_tier_id, membership_expires_at FROM users WHERE id = ?');
+    $st = db()->prepare('SELECT id, email, password_hash, is_premium, is_admin, is_suspended, membership_tier_id, membership_expires_at, bonus_tier_id, bonus_tier_expires_at FROM users WHERE id = ?');
     $st->execute([(int) $_SESSION['uid']]);
     $row = $st->fetch() ?: null;
     // Suspendida, o la contraseña cambió desde otro dispositivo (revoca esta sesión: quien robó la cookie

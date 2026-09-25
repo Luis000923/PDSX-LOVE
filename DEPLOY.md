@@ -181,3 +181,11 @@ Si el origen no tenía administradores, promueve al usuario más antiguo. Despu�
 - Cupones al 100 %: el pago se registra como `PROMO` con monto 0 y no pasa por Wompi. La aprobación manual de pagos y los ajustes de cuenta quedan en `admin_audit` (Panel → Actividad).
 - Ver `docs/ADMIN.md` para el resumen de módulos.
 
+
+## Economía de creadores (migración v13)
+
+- La migración v13 corre sola en el primer arranque: columnas de autoría/revisión en `templates`, tabla `template_earnings`, `users.bonus_tier_id/bonus_tier_expires_at` y un índice único sobre `users.display_name` (se omite con aviso en el log si ya hay alias duplicados: resuélvelos y reinicia). Despliega `database/schema.sql` y `config/database.php` **juntos**.
+- Las plantillas públicas se guardan en `storage/user_templates/` (volumen `lovestorage`, ya existente) y las miniaturas en `public/assets/thumbs/`.
+- Cron recomendado: `*/15 * * * * php bin/settle_creators.php` (liquida ganancias pendientes; también ocurre tras cada venta y al abrir los paneles) y `5 6 1 * * php bin/close_awards.php`.
+- Configuración editable en `admin/creators.php` (reparto, precios, límites, hitos y premio mensual). Ver `docs/CREADORES.md` y `docs/RANKING.md`.
+- Textos legales actualizados (`terms.php`, `privacy.php`): programa de creadores, plantillas privadas/públicas, rankings y premios.

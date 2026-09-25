@@ -195,7 +195,7 @@ final class AdminUsers
         try {
             $u = self::lock($userId);
             $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
-            $cur = Access::userTier($u, $now->getTimestamp());
+            $cur = Access::mainTier($u, $now->getTimestamp());
             if ($cur !== null && (int) $tier['sort_order'] < (int) $cur['sort_order'] && !$force) {
                 throw new InvalidArgumentException('El usuario tiene un plan superior vigente (' . $cur['name'] . '). Marca «forzar» para reemplazarlo.');
             }
@@ -264,9 +264,17 @@ final class AdminUsers
             if (!hash_equals(strtolower((string) $u['email']), strtolower(trim($confirmEmail)))) {
                 throw new InvalidArgumentException('El correo escrito no coincide con el de la cuenta.');
             }
-            $sites = (int) $pdo->query('SELECT COUNT(*) FROM user_sites WHERE user_id = ' . $userId)->fetchColumn();
+            $slugSt = $pdo->prepare('SELECT slug FROM user_sites WHERE user_id = ?');
+            $slugSt->execute([$userId]);
+            $slugs = $slugSt->fetchAll(PDO::FETCH_COLUMN);
+            $sites = count($slugs);
+            // Sus plantillas públicas salen del catálogo (las páginas de otros siguen vivas); owner_user_id queda NULL por la FK.
+            $pdo->prepare("UPDATE templates SET review_status = 'withdrawn', is_active = 0 WHERE owner_user_id = ? AND kind = 'utpl' AND review_status IN ('approved', 'pending')")->execute([$userId]);
             $pdo->prepare('DELETE FROM users WHERE id = ?')->execute([$userId]);
             $pdo->commit();
+            foreach ($slugs as $sl) {   // fotos y HTML propio de cada página (tras confirmar la transacción)
+                Sites::purgeFiles((string) $sl);
+            }
         } catch (Throwable $e) {
             $pdo->rollBack();
             throw $e;
@@ -315,6 +323,7 @@ final class AdminUsers
         $st->execute([$siteId]);
         $s = $st->fetch() ?: throw new InvalidArgumentException('La página ya no existe.');
         db()->prepare('DELETE FROM user_sites WHERE id = ?')->execute([$siteId]);
+        Sites::purgeFiles((string) $s['slug']);
         self::audit($adminId, 'page.delete', sprintf('user:%d página %s eliminada (%s) — %s', (int) $s['user_id'], $s['slug'], $s['email'], $reason));
     }
 }

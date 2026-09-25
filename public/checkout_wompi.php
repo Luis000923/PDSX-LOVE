@@ -42,7 +42,7 @@ if ($packCents > 0) {
         redirect('dashboard.php');
     }
 } elseif ($templateId > 0) {
-    $st = $pdo->prepare('SELECT id, name, price_usd, is_premium FROM templates WHERE id = ? AND is_active = 1');
+    $st = $pdo->prepare('SELECT id, name, price_usd, is_premium FROM templates WHERE id = ? AND is_active = 1 AND kind NOT IN (\'user\', \'utpl\')');
     $st->execute([$templateId]);
     $tpl = $st->fetch() ?: null;
     if ($tpl === null || !Access::isPurchasable($tpl)) {

@@ -4,9 +4,11 @@ FROM php:8.2-apache
 # pdo_mysql NO viene en la imagen oficial (solo pdo_sqlite): se compila aquí contra mysqlnd,
 # que ya está incluido, así que no hacen falta librerías de cliente. Además, módulos de Apache.
 # zip: el panel admin instala plantillas PHP subidas como .zip (PhpTemplate).
-RUN apt-get update && apt-get install -y --no-install-recommends libzip-dev \
+# gd (jpeg/png/webp): las fotos que suben los usuarios se vuelven a codificar y redimensionar (ImageStore).
+RUN apt-get update && apt-get install -y --no-install-recommends libzip-dev libpng-dev libjpeg-dev libwebp-dev \
  && rm -rf /var/lib/apt/lists/* \
- && docker-php-ext-install -j"$(nproc)" pdo_mysql zip \
+ && docker-php-ext-configure gd --with-jpeg --with-webp \
+ && docker-php-ext-install -j"$(nproc)" pdo_mysql zip gd \
  && a2enmod rewrite headers \
  && a2dissite 000-default \
  && mkdir -p /var/www/app
@@ -25,11 +27,12 @@ COPY templates ./templates
 
 # El panel admin edita plantillas y sube miniaturas en tiempo de ejecución: esas dos rutas
 # son volúmenes (Docker las siembra con lo de la imagen la primera vez) y deben ser de www-data.
-RUN mkdir -p public/assets/thumbs public/assets/tpl templates/php \
- && chown -R www-data:www-data templates public/assets/thumbs public/assets/tpl
+RUN mkdir -p public/assets/thumbs public/assets/tpl templates/php public/uploads/sites storage/user_html \
+ && chown -R www-data:www-data templates public/assets/thumbs public/assets/tpl public/uploads storage
 
 # La BD ya no vive en un volumen local: es un servidor MySQL externo (DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD).
-VOLUME ["/var/www/app/templates", "/var/www/app/public/assets/thumbs", "/var/www/app/public/assets/tpl"]
+# uploads = fotos de los usuarios (públicas, sin ejecución); storage = HTML propio de los usuarios (FUERA del webroot).
+VOLUME ["/var/www/app/templates", "/var/www/app/public/assets/thumbs", "/var/www/app/public/assets/tpl", "/var/www/app/public/uploads", "/var/www/app/storage"]
 EXPOSE 80
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

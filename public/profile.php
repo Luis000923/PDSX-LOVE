@@ -6,7 +6,7 @@ require __DIR__ . '/../src/bootstrap.php';
 $user = require_login();
 $uid  = (int) $user['id'];
 
-$errors = ['email' => null, 'password' => null];
+$errors = ['email' => null, 'password' => null, 'alias' => null];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_post();   // 405 si no es POST + CSRF estricto
@@ -18,6 +18,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('Correo actualizado.');
             redirect('profile.php');
         }
+    } elseif ($action === 'alias') {
+        // Cambiar el alias cuesta monedas (el primero y ocultarlo del ranking son gratis): ver Ranking::saveOptIn().
+        $r = Ranking::saveOptIn($uid, !empty($_POST['show_in_rankings']), (string) ($_POST['alias'] ?? ''));
+        if ($r['ok']) {
+            flash($r['charged'] > 0 ? 'Alias actualizado. Se descontaron ' . $r['charged'] . ' monedas.' : 'Preferencias de alias guardadas.');
+            redirect('profile.php');
+        }
+        $errors['alias'] = (string) $r['error'];
     } elseif ($action === 'password') {
         $errors['password'] = Profile::changePassword(
             $uid,
@@ -95,6 +103,30 @@ page_start('Mi perfil', 'max-w-4xl');
       </form>
     </section>
 
+    <?php $aliasOpt = Ranking::optIn($uid); $aliasCost = Ranking::aliasChangeCost(); ?>
+    <section id="alias" class="<?= $card ?> scroll-mt-4" aria-labelledby="h-alias">
+      <h2 id="h-alias" class="font-semibold mb-1 flex items-center gap-2"><?= $ico('ico-heart') ?>Tu alias público</h2>
+      <p class="text-sm text-slate-600 mb-3">Es el nombre que se muestra en el <a class="text-rose-700 font-semibold underline underline-offset-2" href="<?= e(url('top.php')) ?>">Top de donadores</a> (y como autor si publicas plantillas). Nunca mostramos tu correo.</p>
+      <form method="post" class="space-y-3">
+        <?= csrf_field() ?><input type="hidden" name="action" value="alias">
+        <div>
+          <label class="<?= $lbl ?>" for="alias-input">Alias</label>
+          <input id="alias-input" class="<?= INPUT_CLS ?> min-h-[44px]" type="text" name="alias" minlength="<?= Ranking::ALIAS_MIN ?>" maxlength="<?= Ranking::ALIAS_MAX ?>" autocomplete="nickname" aria-describedby="alias-costo<?= $errors['alias'] ? ' alias-err' : '' ?>" <?= $errors['alias'] ? 'aria-invalid="true"' : '' ?>
+                 value="<?= e($errors['alias'] !== null ? (string) ($_POST['alias'] ?? '') : $aliasOpt['alias']) ?>">
+          <?php if ($errors['alias']): ?><p id="alias-err" role="alert" class="mt-1 text-sm text-rose-700"><?= e($errors['alias']) ?></p><?php endif; ?>
+          <p id="alias-costo" class="mt-1 text-xs text-slate-600">
+            <?php if ($aliasOpt['alias'] === ''): ?>Elegir tu primer alias es gratis.
+            <?php elseif ($aliasCost > 0): ?><strong>Cambiarlo cuesta <?= $aliasCost ?> monedas</strong> (tu saldo: <?= Coins::balance($uid) ?>). Solo cambiar mayúsculas o tildes es gratis.
+            <?php else: ?>Cambiarlo es gratis por ahora.<?php endif; ?>
+            Letras, números, espacios y . _ -
+          </p>
+        </div>
+        <label class="flex items-start gap-3 min-h-[44px] text-sm"><input type="checkbox" name="show_in_rankings" value="1" class="mt-1 h-5 w-5 accent-rose-600" <?= $aliasOpt['show'] ? 'checked' : '' ?>>
+          <span>Mostrar mi alias en el Top de donadores <span class="text-slate-500">(ocultarlo siempre es gratis)</span></span></label>
+        <button class="<?= BTN_CLS ?> min-h-[44px] focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2">Guardar alias</button>
+      </form>
+    </section>
+
     <section class="<?= $card ?>" aria-labelledby="h-seg">
       <h2 id="h-seg" class="font-semibold mb-3 flex items-center gap-2"><?= $ico('ico-shield') ?>Seguridad</h2>
       <form method="post" class="space-y-3">
@@ -124,7 +156,11 @@ page_start('Mi perfil', 'max-w-4xl');
       <h2 id="h-plan" class="font-semibold mb-3 flex items-center gap-2"><?= $ico('ico-crown') ?>Tu plan</h2>
       <p class="text-sm font-semibold"><?= $tier ? 'Plan ' . e((string) $tier['name']) : 'Plan gratuito' ?></p>
       <?php $pExp = Access::membershipExpiresAt($user); $pDays = Access::membershipDaysLeft($user); ?>
-      <?php if ($tier): ?>
+      <?php $bonusT = Access::bonusTier($user); $mainT = Access::mainTier($user); $onBonus = $bonusT !== null && ($mainT === null || (int) $bonusT['sort_order'] > (int) $mainT['sort_order']); ?>
+      <?php if ($onBonus): ?>
+        <p class="mt-1 text-sm text-slate-600">Mejora temporal (premio a creadores) hasta el <?= e(date('d/m/Y', (int) strtotime((string) $user['bonus_tier_expires_at'] . ' UTC'))) ?>.<?= $mainT !== null ? '' : ' Al terminar vuelves a tu plan anterior.' ?></p>
+      <?php endif; ?>
+      <?php if ($tier && !$onBonus): ?>
         <p class="mt-1 text-sm <?= $pDays !== null && $pDays <= 7 ? 'font-semibold text-amber-800' : 'text-slate-600' ?>"><?= $pExp !== null ? 'Vence el ' . e(date('d/m/Y', (int) strtotime($pExp . ' UTC'))) . ($pDays !== null ? ' · quedan ' . $pDays . ($pDays === 1 ? ' día' : ' días') : '') : 'Sin vencimiento' ?></p>
       <?php elseif (Access::wasMember($user)): ?>
         <p role="status" class="mt-1 text-sm font-semibold text-amber-800">Tu plan venció. Renuévalo para recuperar tus beneficios.</p>
@@ -135,6 +171,8 @@ page_start('Mi perfil', 'max-w-4xl');
         <?php if ($pFull): ?><p role="status" class="mt-2 text-sm font-semibold text-rose-800">Ya usaste tus páginas gratuitas de este mes.</p><?php endif; ?>
         <p class="mt-1 text-xs text-slate-600">Se reinicia el <?= e(Access::monthResetLabel($usage['resets_at'])) ?> · cada página dura <?= (int) Access::siteDays($user) ?> días</p>
       <?php endif; ?>
+      <?php $hu = Access::htmlUploadUsage($user); ?>
+      <p class="mt-2 text-sm text-slate-600 flex items-center gap-2"><?= $ico('ico-file-text', 'h-5 w-5') ?>HTML propio este mes: <strong><?= (int) $hu['used'] ?>/<?= (int) $hu['allowed'] ?></strong> · se reinicia el <?= e(Access::monthResetLabel($hu['resets_at'])) ?> · <a class="font-semibold text-rose-700 underline" href="<?= e(url('upload_html.php')) ?>">Subir</a></p>
       <ul class="mt-3 space-y-1 text-sm text-slate-700">
         <?php if ($tier): ?>
           <li class="flex items-center gap-2"><?= $ico('ico-check', 'h-5 w-5') ?><?= (int) $tier['template_discount_pct'] ?> % de descuento en plantillas extra</li>
@@ -148,6 +186,13 @@ page_start('Mi perfil', 'max-w-4xl');
         <a class="<?= $link ?>" href="<?= e(url('tienda.php#monedas')) ?>">Recargar monedas<?= $ico('ico-arrow-right', 'h-4 w-4') ?></a>
         <a class="<?= $link ?>" href="<?= e(url('tienda.php#membresias')) ?>"><?= $tier || Access::wasMember($user) ? 'Renovar' : 'Ver membresías' ?><?= $ico('ico-arrow-right', 'h-4 w-4') ?></a>
       </div>
+    </section>
+
+    <?php CreatorEarnings::settle($uid); $cTot = CreatorEarnings::totals($uid); ?>
+    <section class="<?= $card ?>" aria-labelledby="h-crea">
+      <h2 id="h-crea" class="font-semibold mb-1 flex items-center gap-2"><?= $ico('ico-heart') ?>Programa de creadores</h2>
+      <p class="text-sm text-slate-600">Publica tus plantillas en la Galería y gana monedas cuando otras personas las usen.<?= $cTot['paid'] + $cTot['pending'] > 0 ? ' Has ganado <strong>' . (int) ($cTot['paid'] + $cTot['pending']) . ' monedas</strong>.' : '' ?></p>
+      <a class="<?= $link ?>" href="<?= e(url('creator.php')) ?>">Mis plantillas públicas<?= $ico('ico-arrow-right', 'h-4 w-4') ?></a>
     </section>
 
     <section class="<?= $card ?>" aria-labelledby="h-priv">

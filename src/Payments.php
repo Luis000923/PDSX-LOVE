@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/Awards.php';
+
 /**
  * Ciclo de vida de un pago: cumplimiento idempotente (plan, monedas, plantilla, cupón),
  * aprobación/anulación manual por un admin y compra gratuita con cupón del 100 %.
@@ -45,6 +47,10 @@ final class Payments
                 } else {
                     self::apply($pdo, $pay);
                     $pdo->prepare('UPDATE payments SET fulfilled_at = UTC_TIMESTAMP() WHERE id = ? AND fulfilled_at IS NULL')->execute([$paymentId]);
+                    // Hitos de gasto acumulado (top de donadores): misma transacción; un fallo aquí nunca revierte el pago.
+                    if ((int) $pay['amount_in_cents'] > 0) {
+                        Awards::onPaymentFulfilled($pdo, (int) $pay['user_id']);
+                    }
                     $res['ok'] = true;
                 }
             }

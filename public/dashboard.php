@@ -13,13 +13,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flash($err ?? 'Página renovada.');
         redirect('dashboard.php');
     }
+    $delId = (int) ($_POST['delete'] ?? 0);
+    $slugSt = $pdo->prepare('SELECT slug FROM user_sites WHERE id = ? AND user_id = ?');
+    $slugSt->execute([$delId, $user['id']]);
+    $delSlug = $slugSt->fetchColumn();
     $pdo->prepare('DELETE FROM user_sites WHERE id = ? AND user_id = ?')
-        ->execute([(int) ($_POST['delete'] ?? 0), $user['id']]);
+        ->execute([$delId, $user['id']]);
+    if (is_string($delSlug)) {
+        Sites::purgeFiles($delSlug);   // fotos y HTML propio
+    }
     flash('Página eliminada.');
     redirect('dashboard.php');
 }
 
-$st = $pdo->prepare('SELECT s.id, s.slug, s.data, s.expires_at, t.name, t.price_coins FROM user_sites s JOIN templates t ON t.id = s.template_id WHERE s.user_id = ? ORDER BY s.id DESC');
+$st = $pdo->prepare('SELECT s.id, s.slug, s.data, s.expires_at, t.name, t.price_coins, t.membership_unlocks FROM user_sites s JOIN templates t ON t.id = s.template_id WHERE s.user_id = ? ORDER BY s.id DESC');
 $st->execute([$user['id']]);
 $sites = $st->fetchAll();
 
@@ -84,7 +91,7 @@ $off = 'inline-flex items-center justify-center gap-2 min-h-[44px] px-3 rounded-
     <article class="rounded-2xl bg-white border border-rose-100 p-4 flex flex-col gap-3 <?= $expired ? 'bg-slate-50' : '' ?>">
       <div class="flex items-start justify-between gap-2">
         <div class="min-w-0">
-          <h2 class="font-semibold truncate"><?= e($d['your_name'] ?? '') ?> ♥ <?= e($d['partner_name'] ?? '') ?></h2>
+          <h2 class="font-semibold truncate"><?= e($d['your_name'] ?? '') ?><?= ($d['partner_name'] ?? '') !== '' ? ' ♥ ' . e($d['partner_name']) : '' ?></h2>
           <p class="text-xs text-slate-600">Plantilla <?= e($s['name']) ?></p>
         </div>
         <span class="shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold <?= $badge[1] ?>"><?= e($badge[0]) ?></span>

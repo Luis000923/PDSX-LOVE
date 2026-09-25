@@ -20,9 +20,9 @@ has(){ case "$1" in *"$2"*) return 0;; *) return 1;; esac; }
 
 # --- 1. Primer registro => administrador; segundo => usuario normal ----------
 T=$(tok "$A" register.php); ADMIN="admin$RANDOM@example.com"
-[ "$(code -b "$A" -c "$A" --data-urlencode "_csrf=$T" --data-urlencode "email=$ADMIN" -d 'password=12345678' $B/register.php)" = 303 ] || fail "alta admin"
+[ "$(code -b "$A" -c "$A" --data-urlencode "_csrf=$T" --data-urlencode "email=$ADMIN" -d 'password=12345678' --data-urlencode "alias=AdminHumo$RANDOM" $B/register.php)" = 303 ] || fail "alta admin"
 T=$(tok "$U" register.php); USER="user$RANDOM@example.com"
-[ "$(code -b "$U" -c "$U" --data-urlencode "_csrf=$T" --data-urlencode "email=$USER" -d 'password=12345678' $B/register.php)" = 303 ] || fail "alta usuario"
+[ "$(code -b "$U" -c "$U" --data-urlencode "_csrf=$T" --data-urlencode "email=$USER" -d 'password=12345678' --data-urlencode "alias=UserHumo$RANDOM" $B/register.php)" = 303 ] || fail "alta usuario"
 
 # --- 2. Control de acceso (RBAC) --------------------------------------------
 [ "$(code $B/admin/index.php)" = 303 ]             || fail "anónimo debe ir al login"
@@ -60,7 +60,7 @@ LIST=$(get "$A" admin/templates.php)
 has "$LIST" 'prueba-humo' || fail "la plantilla no aparece en el listado"
 ID=$(echo "$LIST" | tr '\n' ' ' | grep -oP 'prueba-humo.*?template_edit\.php\?id=\K[0-9]+' | head -1)
 [ -n "$ID" ] || fail "id de plantilla no encontrado"
-has "$(curl -fsS -b "$A" "$B/admin/template_preview.php?id=$ID")" 'Ana' || fail "la previsualización no renderiza"
+has "$(curl -fsS -b "$A" "$B/admin/template_preview.php?id=$ID")" 'Tu nombre' || fail "la previsualización no renderiza"
 
 # --- 6. Cambio de estado y borrado protegido --------------------------------
 T=$(tok "$A" admin/templates.php)

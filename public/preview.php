@@ -1,6 +1,10 @@
 <?php
 declare(strict_types=1);
+if (($_GET['frame'] ?? '') === '1') {
+    define('NO_SESSION', true);   // documento aislado de una plantilla de usuario: ni sesión ni cookies
+}
 require __DIR__ . '/../src/bootstrap.php';
+require_once ROOT . '/src/UserHtml.php';
 
 /**
  * Vista previa pública de una plantilla activa con datos de ejemplo (nunca datos reales).
@@ -9,7 +13,7 @@ require __DIR__ . '/../src/bootstrap.php';
 $slug = $_GET['t'] ?? '';
 $tpl = null;
 if (is_string($slug) && preg_match('/^[a-z0-9][a-z0-9_-]{2,39}$/', $slug)) {
-    $st = db()->prepare('SELECT id, slug, name, kind, file, price_usd, is_premium FROM templates WHERE slug = ? AND is_active = 1');
+    $st = db()->prepare('SELECT id, slug, name, kind, file, price_usd, is_premium FROM templates t WHERE t.slug = ? AND ' . Creators::PUBLIC_WHERE);
     $st->execute([$slug]);
     $tpl = $st->fetch() ?: null;
 }
@@ -18,8 +22,8 @@ if ($tpl === null) {
 }
 
 $demo = [
-    'your_name'    => 'Ana',
-    'partner_name' => 'Luis',
+    'your_name'    => 'Tu nombre',
+    'partner_name' => 'Nombre de tu pareja',
     'start_date'   => (new DateTimeImmutable('-400 days'))->format('Y-m-d'),
     'message'      => "Así se verá tu página con tus propios datos.\nCada palabra la escribes tú.",
 ];
@@ -30,7 +34,22 @@ if ($embed) {
 }
 
 try {
-    $html = Template::renderRow($tpl, $demo, ['nonce' => csp_nonce(), 'ad_slot' => '']);
+    if ($tpl['kind'] === 'utpl') {
+        // Escrita por un tercero: nunca en nuestro origen. ?frame=1 es el documento con CSP sandbox; la página normal solo lo enmarca.
+        if (($_GET['frame'] ?? '') === '1') {
+            $doc = Creators::render((string) $tpl['slug'], $demo, ['images' => []]);
+            UserHtml::sendSandboxHeaders();
+            echo $doc;
+            exit;
+        }
+        $q = array_filter(['t' => $slug, 'frame' => '1', 'embed' => $embed ? '1' : '', 'your_name' => $_GET['your_name'] ?? '', 'partner_name' => $_GET['partner_name'] ?? '',
+                           'start_date' => $_GET['start_date'] ?? '', 'message' => $_GET['message'] ?? ''], static fn ($v): bool => is_string($v) && $v !== '');
+        $html = '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">'
+              . '<title>' . e((string) $tpl['name']) . '</title><style>html,body{height:100%;margin:0}iframe{display:block;width:100%;height:100%;border:0}</style></head><body>'
+              . '<iframe src="' . e(url('preview.php?' . http_build_query($q))) . '" sandbox="allow-scripts" referrerpolicy="no-referrer" title="' . e('Vista previa de ' . $tpl['name']) . '"></iframe></body></html>';
+    } else {
+        $html = Template::renderRow($tpl, $demo, ['nonce' => csp_nonce(), 'ad_slot' => '']);
+    }
 } catch (Throwable $ex) {
     error_log('preview ' . $slug . ': ' . $ex->getMessage());
     render_error(500);

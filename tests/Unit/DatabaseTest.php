@@ -32,7 +32,8 @@ final class DatabaseTest extends TestCase
         $raw->exec('SET FOREIGN_KEY_CHECKS = 1');
         unset($raw);
 
-        self::$pdo = db();   // primer uso: crea el esquema y anota la versión
+        self::$pdo = db();   // conexión compartida (puede venir ya cacheada de otra prueba)
+        db_migrate(self::$pdo);   // recrea el esquema y anota la versión sobre la base recién vaciada
     }
 
     public function testMigrationStampsSchemaVersion(): void
@@ -79,7 +80,8 @@ final class DatabaseTest extends TestCase
         db_migrate(self::$pdo);
         $rows = (int) self::$pdo->query('SELECT COUNT(*) FROM schema_version')->fetchColumn();
         self::assertSame(1, $rows);
-        self::assertSame(2, (int) self::$pdo->query('SELECT COUNT(*) FROM templates')->fetchColumn(), 'INSERT IGNORE no duplica las plantillas base');
+        self::assertSame(3, (int) self::$pdo->query('SELECT COUNT(*) FROM templates')->fetchColumn(), 'INSERT IGNORE no duplica las plantillas base (2 visibles + la oculta html-propio)');
+        self::assertSame(1, (int) self::$pdo->query("SELECT COUNT(*) FROM templates WHERE slug = 'html-propio' AND kind = 'user'")->fetchColumn());
     }
 
     public function testMigrationReleasesItsLock(): void

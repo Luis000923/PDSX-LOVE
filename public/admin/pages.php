@@ -24,6 +24,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $res = AdminUsers::pages($q, $filter, (int) ($_GET['page'] ?? 1));
+// Páginas de HTML propio de esta hoja de resultados (una consulta con los ids ya paginados; sin N+1).
+$htmlIds = [];
+if ($res['rows']) {
+    $ids = array_map(static fn (array $r): int => (int) $r['id'], $res['rows']);
+    $st = db()->prepare('SELECT h.site_id FROM user_html_sites h WHERE h.site_id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')');
+    $st->execute($ids);
+    $htmlIds = array_flip(array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN)));
+}
 admin_page_start('Páginas', 'pages', $res['total'] . ' resultado(s)');
 admin_errors($errors);
 ?>
@@ -44,13 +52,13 @@ admin_errors($errors);
   <?php foreach ($res['rows'] as $r): $on = (int) $r['is_active'] === 1 && (int) $r['is_suspended'] === 0; ?>
   <tr>
     <td class="px-4 py-3 font-mono text-xs"><?= e((string) $r['slug']) ?></td>
-    <td class="px-4 py-3"><?= e((string) $r['template_name']) ?></td>
+    <td class="px-4 py-3"><?= e((string) $r['template_name']) ?><?php if (isset($htmlIds[(int) $r['id']])): ?> <?= admin_badge('HTML propio', 'slate') ?><?php endif; ?></td>
     <td class="px-4 py-3"><a class="text-rose-600 hover:underline" href="<?= e(url('admin/user.php?id=' . (int) $r['user_id'])) ?>"><?= e((string) $r['email']) ?></a></td>
     <td class="px-4 py-3"><?= e(admin_date((string) $r['created_at'])) ?></td>
     <td class="px-4 py-3"><?= e(admin_date($r['expires_at'] === null ? null : (string) $r['expires_at'])) ?></td>
     <td class="px-4 py-3"><?= (int) $r['is_suspended'] ? admin_badge('Dueño suspendido', 'rose') : ((int) $r['is_active'] ? admin_badge('Activa', 'green') : admin_badge('Vencida', 'slate')) ?></td>
     <td class="px-4 py-3">
-      <?php if ($on): ?><a class="<?= ADMIN_BTN_GHOST_CLS ?> !py-1 mb-1" target="_blank" rel="noopener" href="<?= e(url('c/' . $r['slug'])) ?>">Ver</a><?php endif; ?>
+      <?php if ($on): ?><a class="<?= ADMIN_BTN_GHOST_CLS ?> !py-1 mb-1" target="_blank" rel="noopener" href="<?= e(url('c/' . $r['slug'])) ?>">Ver</a><?php if (isset($htmlIds[(int) $r['id']])): ?> <a class="<?= ADMIN_BTN_GHOST_CLS ?> !py-1 mb-1" target="_blank" rel="noopener" href="<?= e(url('c/' . $r['slug'] . '/f')) ?>">Ver documento aislado</a><?php endif; endif; ?>
       <details>
         <summary class="cursor-pointer text-xs font-semibold text-rose-700 list-none">Eliminar página</summary>
         <form method="post" class="mt-2 space-y-2 w-56"><?= csrf_field() ?><input type="hidden" name="site_id" value="<?= (int) $r['id'] ?>">

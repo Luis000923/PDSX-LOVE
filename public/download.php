@@ -17,7 +17,7 @@ if (!is_int($id) || $id < 1) {
 $st = db()->prepare(
     'SELECT s.slug AS site_slug, s.data, s.expires_at, t.file, t.kind, t.slug
        FROM user_sites s
-       JOIN templates t ON t.id = s.template_id AND t.is_active = 1
+       JOIN templates t ON t.id = s.template_id AND (t.is_active = 1 OR (t.kind = \'utpl\' AND t.review_status = \'withdrawn\'))
       WHERE s.id = ? AND s.user_id = ?'
 );
 $st->execute([$id, $user['id']]);
@@ -33,7 +33,16 @@ if (!is_array($data)) {
     render_error(500);
 }
 
-$html = Template::renderRow($site, $data, ['nonce' => '', 'ad_slot' => '']);
+if (($site['kind'] ?? 'html') === 'user') {
+    // HTML propio: se devuelve el archivo que subió su dueño (los recursos de un ZIP no van incluidos).
+    $slug = (string) $site['site_slug'];
+    $file = preg_match('/^[a-z0-9]{6,12}$/D', $slug) === 1 ? ROOT . '/storage/user_html/' . $slug . '/index.html' : '';
+    if ($file === '' || !is_file($file) || ($html = file_get_contents($file)) === false) {
+        render_error(404);
+    }
+} else {
+    $html = Template::renderRow($site, $data, ['nonce' => '', 'ad_slot' => '']);
+}
 if (($site['kind'] ?? 'html') === 'php') {
     $html = SiteExport::selfContain($html, (string) $site['slug'], PhpTemplate::assetsDir(), url(''));
 }

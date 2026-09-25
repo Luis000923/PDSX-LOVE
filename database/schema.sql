@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS membership_tiers (
     topup_bonus_pct       INT           NOT NULL DEFAULT 0, -- % extra de monedas en recargas
     sort_order            INT           NOT NULL,          -- mayor = nivel superior
     duration_months       INT           NOT NULL DEFAULT 1, -- meses que dura cada compra (sin renovación automática)
+    template_unlocks_per_month INT      NOT NULL DEFAULT 0, -- cupo mensual de plantillas de membresía (ver templates.membership_unlocks)
+    html_uploads_per_month INT          NOT NULL DEFAULT 0, -- subidas de HTML propio por mes (el plan gratuito usa Access::FREE_MONTHLY_HTML_UPLOADS)
     is_active             TINYINT(1)    NOT NULL DEFAULT 1,
     UNIQUE KEY uq_tiers_slug (slug),
     CONSTRAINT chk_tiers_price    CHECK (price_usd >= 0.01),
@@ -50,10 +52,16 @@ CREATE TABLE IF NOT EXISTS users (
     is_suspended  TINYINT(1)   NOT NULL DEFAULT 0,         -- cuenta suspendida por un admin
     suspended_reason VARCHAR(200) NULL,
     suspended_at  DATETIME     NULL,
+    display_name  VARCHAR(30)  NULL,                       -- alias público del ranking (opt-in)
+    show_in_rankings TINYINT(1) NOT NULL DEFAULT 0,        -- 1 = muestra su alias en el top de donadores
+    bonus_tier_id INT          NULL,                       -- mejora TEMPORAL de plan (premio a creadores); no es el plan comprado
+    bonus_tier_expires_at DATETIME NULL,                   -- UTC
     created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uq_users_email (email),
+    UNIQUE KEY uq_users_display_name (display_name),
     KEY idx_users_tier (membership_tier_id),
     CONSTRAINT fk_users_tier FOREIGN KEY (membership_tier_id) REFERENCES membership_tiers(id) ON DELETE SET NULL,
+    CONSTRAINT fk_users_bonus_tier FOREIGN KEY (bonus_tier_id) REFERENCES membership_tiers(id) ON DELETE SET NULL,
     CONSTRAINT chk_users_is_premium CHECK (is_premium IN (0, 1)),
     CONSTRAINT chk_users_is_admin   CHECK (is_admin   IN (0, 1)),
     CONSTRAINT chk_users_coins      CHECK (coins >= 0)
@@ -71,12 +79,26 @@ CREATE TABLE IF NOT EXISTS templates (
     price_coins INT          NOT NULL DEFAULT 0,        -- costo en monedas al crear una página (0 = gratis)
     thumbnail   VARCHAR(160) NULL,                      -- basename en /public/assets/thumbs (opcional)
     is_premium  TINYINT(1)   NOT NULL DEFAULT 0,
+    image_spec  TEXT         NULL,                      -- JSON con las fotos que pide la plantilla (ver TemplateImages); NULL = ninguna
+    membership_unlocks TINYINT(1) NOT NULL DEFAULT 0,    -- 1 = premium con CUPO mensual por membresía (cae a price_coins al agotarse); 0 = membresía la desbloquea sin límite (comportamiento clásico)
     is_active   TINYINT(1)   NOT NULL DEFAULT 1,
+    owner_user_id INT        NULL,                       -- autor de una plantilla pública de usuario (kind = 'utpl')
+    review_status VARCHAR(10) NOT NULL DEFAULT 'approved', -- pending | approved | rejected | withdrawn
+    review_note VARCHAR(255) NULL,
+    credit_alias VARCHAR(30) NULL,                        -- alias de autoría (foto instantánea al aprobar)
+    submitted_at DATETIME    NULL,
+    reviewed_at DATETIME     NULL,
+    reviewed_by INT          NULL,
     UNIQUE KEY uq_templates_slug (slug),
+    KEY idx_templates_owner (owner_user_id, review_status),
+    KEY idx_templates_review (review_status, kind, is_active),
     CONSTRAINT chk_templates_is_premium CHECK (is_premium IN (0, 1)),
+    CONSTRAINT chk_templates_membership_unlocks CHECK (membership_unlocks IN (0, 1)),
     CONSTRAINT chk_templates_price_usd  CHECK (price_usd >= 0),
     CONSTRAINT chk_templates_price_coins CHECK (price_coins >= 0),
-    CONSTRAINT chk_templates_is_active  CHECK (is_active  IN (0, 1))
+    CONSTRAINT chk_templates_is_active  CHECK (is_active  IN (0, 1)),
+    CONSTRAINT fk_templates_owner    FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE SET NULL,
+    CONSTRAINT fk_templates_reviewer FOREIGN KEY (reviewed_by)   REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS user_sites (
@@ -130,6 +152,7 @@ CREATE TABLE IF NOT EXISTS payments (
     KEY idx_payments_template (template_id),
     KEY idx_payments_tier (tier_id),
     KEY idx_payments_status_created (status, created_at),
+    KEY idx_payments_rank (status, fulfilled_at, user_id),
     CONSTRAINT fk_payments_user     FOREIGN KEY (user_id)     REFERENCES users(id)     ON DELETE CASCADE,
     -- Borrar una plantilla no debe borrar el historial de pagos.
     CONSTRAINT fk_payments_template FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE SET NULL,
@@ -198,6 +221,61 @@ CREATE TABLE IF NOT EXISTS promo_redemptions (
     CONSTRAINT fk_redemption_user  FOREIGN KEY (user_id)  REFERENCES users(id)  ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Cupo mensual de plantillas de membresía: una fila por plantilla DISTINTA desbloqueada gratis
+-- ese mes calendario (hora de El Salvador); ver Access::templateUnlockUsage() y templates.membership_unlocks.
+CREATE TABLE IF NOT EXISTS template_unlocks (
+    id          INT      NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    user_id     INT      NOT NULL,
+    template_id INT      NOT NULL,
+    tier_id     INT      NULL,
+    created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_tplunlocks_user_month (user_id, created_at),
+    KEY idx_tplunlocks_user_tpl (user_id, template_id),
+    CONSTRAINT fk_tplunlocks_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_tplunlocks_tpl  FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Fotos que suben los usuarios para una página (archivos en public/uploads/sites/{slug}/, ver ImageStore).
+CREATE TABLE IF NOT EXISTS site_images (
+    id         INT          NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    site_id    INT          NOT NULL,
+    slot       VARCHAR(40)  NOT NULL,
+    file       VARCHAR(80)  NOT NULL,
+    mime       VARCHAR(20)  NOT NULL,
+    width      INT          NOT NULL,
+    height     INT          NOT NULL,
+    bytes      INT          NOT NULL,
+    created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_site_images_slot (site_id, slot),
+    CONSTRAINT fk_site_images_site FOREIGN KEY (site_id) REFERENCES user_sites(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Metadatos del HTML propio de una página (el archivo vive FUERA del webroot: storage/user_html/{slug}/).
+CREATE TABLE IF NOT EXISTS user_html_sites (
+    site_id    INT          NOT NULL PRIMARY KEY,
+    sha256     CHAR(64)     NOT NULL,
+    bytes      INT          NOT NULL,
+    has_assets TINYINT(1)   NOT NULL DEFAULT 0,
+    created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_user_html_site FOREIGN KEY (site_id) REFERENCES user_sites(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Libro de subidas de HTML propio (cupo mensual por plan). No se borra al borrar la página: evita burlar el cupo.
+CREATE TABLE IF NOT EXISTS html_uploads (
+    id         INT          NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    user_id    INT          NOT NULL,
+    site_id    INT          NULL,
+    tier_id    INT          NULL,
+    sha256     CHAR(64)     NOT NULL,
+    bytes      INT          NOT NULL,
+    created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_html_uploads_user_month (user_id, created_at),
+    CONSTRAINT fk_html_uploads_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- La plantilla oculta 'html-propio' (kind = 'user', compartida por las páginas de HTML propio) se siembra en
+-- db_migrate_v11(): aquí no, porque este script corre antes que las migraciones que crean las columnas de `templates`.
+
 -- Rastro de auditoría de acciones administrativas (append-only).
 CREATE TABLE IF NOT EXISTS admin_audit (
     id         INT          NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -213,15 +291,74 @@ CREATE TABLE IF NOT EXISTS admin_audit (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Planes (ON DUPLICATE KEY: re-aplicar el esquema deja siempre los valores vigentes).
-INSERT INTO membership_tiers (slug, name, price_usd, max_sites, ad_free, template_discount_pct, site_days, bonus_coins, topup_bonus_pct, sort_order, duration_months) VALUES
-    ('romantico', 'Romántico', 1.00,  2, 0, 0,  3,  10,  0, 1, 1),
-    ('pareja',    'Pareja',    3.99,  5, 1, 0,  7,  45, 10, 2, 1),
-    ('eterno',    'Eterno',    7.99, 12, 1, 0, 14, 100, 20, 3, 2)
+INSERT INTO membership_tiers (slug, name, price_usd, max_sites, ad_free, template_discount_pct, site_days, bonus_coins, topup_bonus_pct, sort_order, duration_months, template_unlocks_per_month, html_uploads_per_month) VALUES
+    ('romantico', 'Romántico', 1.00,  2, 0, 0,  3,  10,  0, 1, 1, 1, 3),
+    ('pareja',    'Pareja',    3.99,  5, 1, 0,  7,  45, 10, 2, 1, 3, 6),
+    ('eterno',    'Eterno',    7.99, 12, 1, 0, 14, 100, 20, 3, 2, 6, 12)
 ON DUPLICATE KEY UPDATE name = VALUES(name), price_usd = VALUES(price_usd), max_sites = VALUES(max_sites), ad_free = VALUES(ad_free),
     template_discount_pct = VALUES(template_discount_pct), site_days = VALUES(site_days), bonus_coins = VALUES(bonus_coins),
     topup_bonus_pct = VALUES(topup_bonus_pct), sort_order = VALUES(sort_order),
     duration_months = VALUES(duration_months);
+    -- Nota: template_unlocks_per_month NO se incluye en el UPDATE para no pisar el valor que el admin
+    -- ya haya ajustado desde el panel en una base existente; solo se siembra en el INSERT inicial.
 
 INSERT IGNORE INTO templates (slug, name, file, description, is_premium, price_coins) VALUES
     ('free-minimal',  'Minimal',             'free-minimal.html',  'Contador de días y carta, sin adornos.', 0, 0),
     ('premium-heart', 'Corazones (Premium)', 'premium-heart.html', 'Lluvia de corazones animada.',           1, 5);
+
+-- ------------------------------------------------- top de donadores (v12) ---
+
+-- Meses ya cerrados (premios del top mensual otorgados). ym = 'YYYY-MM' en hora de El Salvador.
+CREATE TABLE IF NOT EXISTS awards_closed_months (
+    ym        CHAR(7)  NOT NULL PRIMARY KEY,
+    closed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS user_badges (
+    id         INT AUTO_INCREMENT PRIMARY KEY,
+    user_id    INT         NOT NULL,
+    badge_key  VARCHAR(40) NOT NULL,
+    period     VARCHAR(7)  NOT NULL DEFAULT '',            -- 'YYYY-MM' en insignias mensuales; '' en hitos
+    created_at DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_user_badges (user_id, badge_key, period),
+    CONSTRAINT fk_user_badges_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Libro de concesiones: el UNIQUE (user_id, grant_key) garantiza que un premio se otorga una sola vez.
+CREATE TABLE IF NOT EXISTS award_grants (
+    id         INT AUTO_INCREMENT PRIMARY KEY,
+    user_id    INT         NOT NULL,
+    grant_key  VARCHAR(80) NOT NULL,                       -- 'month:2026-09:1' | 'milestone:1000'
+    kind       VARCHAR(20) NOT NULL,                       -- month | milestone
+    coins      INT         NOT NULL DEFAULT 0,
+    created_at DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_award_grants (user_id, grant_key),
+    KEY idx_award_grants_created (created_at),
+    CONSTRAINT fk_award_grants_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------- economía de creadores (v13) ---
+
+-- Ganancias de los creadores. UNIQUE (template_id, ref): un mismo uso nunca se registra dos veces.
+-- Sin FK a creator_id A PROPÓSITO: una FK toma un bloqueo compartido sobre la fila del creador y dos usuarios que se
+-- compran plantillas mutuamente podrían entrar en deadlock. Las filas huérfanas (usuario borrado) se ignoran al pagar.
+-- share_coins se paga aparte (Creators::settle) con status pending -> paid; el pago va al libro coin_transactions.
+CREATE TABLE IF NOT EXISTS template_earnings (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    template_id INT         NOT NULL,
+    creator_id  INT         NOT NULL,
+    buyer_id    INT         NULL,
+    site_id     INT         NULL,
+    ref         VARCHAR(80) NOT NULL,                      -- 'create:{siteId}' | 'renew:{siteId}:{YmdHis}'
+    kind        ENUM('coins','quota') NOT NULL,
+    base_coins  INT         NOT NULL,
+    share_coins INT         NOT NULL,
+    status      ENUM('pending','paid') NOT NULL DEFAULT 'pending',
+    created_at  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    paid_at     DATETIME    NULL,
+    UNIQUE KEY uq_earnings_ref (template_id, ref),
+    KEY idx_earnings_creator (creator_id, status),
+    KEY idx_earnings_template (template_id, created_at),
+    CONSTRAINT fk_earnings_template FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE CASCADE,
+    CONSTRAINT fk_earnings_buyer    FOREIGN KEY (buyer_id)    REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

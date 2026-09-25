@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>{{your_name}} ♥ {{partner_name}}</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+<script nonce="{{{nonce}}}" src="https://cdn.tailwindcss.com"></script>
+<style>
+  html,body{overflow-x:hidden}
+  body{font-family:'Poppins',system-ui,sans-serif}
+  .heart{position:fixed;bottom:-2rem;left:0;animation:rise linear forwards;pointer-events:none;user-select:none}
+  @keyframes rise{to{transform:translateY(-110vh) rotate(25deg);opacity:0}}
+  @media (prefers-reduced-motion:reduce){.heart{display:none}}
+  details summary::-webkit-details-marker{display:none}
+  details[open] .chev{transform:rotate(180deg)}
+  .chev{transition:transform .2s ease}
+</style>
+</head>
+<body class="min-h-screen bg-gradient-to-b from-rose-600 via-pink-600 to-fuchsia-700 text-white flex flex-col items-center px-4 sm:px-6 py-12 overflow-x-hidden">
+  <main class="w-full max-w-md text-center relative z-10">
+    <p class="text-5xl mb-3 animate-pulse">♥</p>
+    <h1 class="text-[clamp(1.4rem,6vw,2.1rem)] font-bold leading-tight break-words">Razones por las que amo a {{partner_name}}</h1>
+    <p class="mt-2 text-white/80 text-sm break-words">Escrito con cariño por {{your_name}}</p>
+
+    <section class="mt-6 rounded-3xl bg-white/15 backdrop-blur p-5 border border-white/20">
+      <p class="text-sm text-white/80">Llevamos construyendo esto</p>
+      <p class="text-[clamp(2rem,10vw,3rem)] font-bold my-1 break-words"><span id="days" data-start="{{start_date}}">{{days_together}}</span></p>
+      <p class="text-white/80 text-sm">días juntos</p>
+    </section>
+
+    <section class="mt-6 text-left space-y-3">
+      <details class="group rounded-2xl bg-white/15 backdrop-blur border border-white/20 overflow-hidden" open>
+        <summary class="cursor-pointer select-none list-none flex items-center justify-between gap-3 px-5 py-4 min-h-[44px] font-semibold">
+          <span class="break-words">1. Porque me haces reír incluso en los días difíciles</span>
+          <span class="chev shrink-0" aria-hidden="true">▾</span>
+        </summary>
+        <p class="px-5 pb-4 text-white/90 leading-relaxed break-words">Con una sola broma tuya el mundo se siente más liviano.</p>
+      </details>
+
+      <details class="group rounded-2xl bg-white/15 backdrop-blur border border-white/20 overflow-hidden">
+        <summary class="cursor-pointer select-none list-none flex items-center justify-between gap-3 px-5 py-4 min-h-[44px] font-semibold">
+          <span class="break-words">2. Porque me escuchas de verdad</span>
+          <span class="chev shrink-0" aria-hidden="true">▾</span>
+        </summary>
+        <p class="px-5 pb-4 text-white/90 leading-relaxed break-words">No solo oyes lo que digo, entiendes lo que siento.</p>
+      </details>
+
+      <details class="group rounded-2xl bg-white/15 backdrop-blur border border-white/20 overflow-hidden">
+        <summary class="cursor-pointer select-none list-none flex items-center justify-between gap-3 px-5 py-4 min-h-[44px] font-semibold">
+          <span class="break-words">3. Porque celebras mis pequeños logros como si fueran enormes</span>
+          <span class="chev shrink-0" aria-hidden="true">▾</span>
+        </summary>
+        <p class="px-5 pb-4 text-white/90 leading-relaxed break-words">Tu apoyo me da ganas de intentarlo todo.</p>
+      </details>
+
+      <details class="group rounded-2xl bg-white/15 backdrop-blur border border-white/20 overflow-hidden">
+        <summary class="cursor-pointer select-none list-none flex items-center justify-between gap-3 px-5 py-4 min-h-[44px] font-semibold">
+          <span class="break-words">4. Porque eres mi lugar seguro</span>
+          <span class="chev shrink-0" aria-hidden="true">▾</span>
+        </summary>
+        <p class="px-5 pb-4 text-white/90 leading-relaxed break-words">A tu lado puedo ser yo mismo/a sin miedo.</p>
+      </details>
+
+      <details class="group rounded-2xl bg-white/15 backdrop-blur border border-white/20 overflow-hidden">
+        <summary class="cursor-pointer select-none list-none flex items-center justify-between gap-3 px-5 py-4 min-h-[44px] font-semibold">
+          <span class="break-words">5. Porque cuidas los detalles</span>
+          <span class="chev shrink-0" aria-hidden="true">▾</span>
+        </summary>
+        <p class="px-5 pb-4 text-white/90 leading-relaxed break-words">Recuerdas cosas pequeñas que para mí significan todo.</p>
+      </details>
+
+      <details class="group rounded-2xl bg-white/15 backdrop-blur border border-white/20 overflow-hidden">
+        <summary class="cursor-pointer select-none list-none flex items-center justify-between gap-3 px-5 py-4 min-h-[44px] font-semibold">
+          <span class="break-words">6. Porque tu abrazo arregla días enteros</span>
+          <span class="chev shrink-0" aria-hidden="true">▾</span>
+        </summary>
+        <p class="px-5 pb-4 text-white/90 leading-relaxed break-words">Cinco segundos contigo y todo pesa menos.</p>
+      </details>
+
+      <details class="group rounded-2xl bg-white/15 backdrop-blur border border-white/20 overflow-hidden">
+        <summary class="cursor-pointer select-none list-none flex items-center justify-between gap-3 px-5 py-4 min-h-[44px] font-semibold">
+          <span class="break-words">7. Porque sueñas en grande y me invitas a soñar contigo</span>
+          <span class="chev shrink-0" aria-hidden="true">▾</span>
+        </summary>
+        <p class="px-5 pb-4 text-white/90 leading-relaxed break-words">Contigo el futuro se ve mucho más bonito.</p>
+      </details>
+
+      <details class="group rounded-2xl bg-white/15 backdrop-blur border border-white/20 overflow-hidden">
+        <summary class="cursor-pointer select-none list-none flex items-center justify-between gap-3 px-5 py-4 min-h-[44px] font-semibold">
+          <span class="break-words">8. Porque eres paciente conmigo</span>
+          <span class="chev shrink-0" aria-hidden="true">▾</span>
+        </summary>
+        <p class="px-5 pb-4 text-white/90 leading-relaxed break-words">Incluso cuando me equivoco, me das espacio para crecer.</p>
+      </details>
+
+      <details class="group rounded-2xl bg-white/15 backdrop-blur border border-white/20 overflow-hidden">
+        <summary class="cursor-pointer select-none list-none flex items-center justify-between gap-3 px-5 py-4 min-h-[44px] font-semibold">
+          <span class="break-words">9. Porque me elegís cada día, no solo al principio</span>
+          <span class="chev shrink-0" aria-hidden="true">▾</span>
+        </summary>
+        <p class="px-5 pb-4 text-white/90 leading-relaxed break-words">El amor de verdad se nota en lo cotidiano, y vos lo demostrás.</p>
+      </details>
+
+      <details class="group rounded-2xl bg-white/15 backdrop-blur border border-white/20 overflow-hidden">
+        <summary class="cursor-pointer select-none list-none flex items-center justify-between gap-3 px-5 py-4 min-h-[44px] font-semibold">
+          <span class="break-words">10. Porque me inspirás a ser mejor persona</span>
+          <span class="chev shrink-0" aria-hidden="true">▾</span>
+        </summary>
+        <p class="px-5 pb-4 text-white/90 leading-relaxed break-words">Verte esforzarte me empuja a esforzarme también.</p>
+      </details>
+
+      <details class="group rounded-2xl bg-white/15 backdrop-blur border border-white/20 overflow-hidden">
+        <summary class="cursor-pointer select-none list-none flex items-center justify-between gap-3 px-5 py-4 min-h-[44px] font-semibold">
+          <span class="break-words">11. Porque encontramos alegría en las cosas simples</span>
+          <span class="chev shrink-0" aria-hidden="true">▾</span>
+        </summary>
+        <p class="px-5 pb-4 text-white/90 leading-relaxed break-words">Una tontera compartida contigo vale más que cualquier plan grande.</p>
+      </details>
+
+      <details class="group rounded-2xl bg-white/15 backdrop-blur border border-white/20 overflow-hidden">
+        <summary class="cursor-pointer select-none list-none flex items-center justify-between gap-3 px-5 py-4 min-h-[44px] font-semibold">
+          <span class="break-words">12. Porque simplemente sos vos</span>
+          <span class="chev shrink-0" aria-hidden="true">▾</span>
+        </summary>
+        <p class="px-5 pb-4 text-white/90 leading-relaxed break-words">No cambiaría nada, así como sos me haces feliz.</p>
+      </details>
+    </section>
+
+    <section class="mt-6 rounded-3xl bg-white text-slate-800 p-6 text-left leading-relaxed shadow-lg break-words [overflow-wrap:anywhere]">
+      <p class="text-rose-500 font-semibold text-sm mb-2">Y sobre todo…</p>
+      <p class="whitespace-pre-line">{{message}}</p>
+      <p class="mt-4 text-right text-rose-600 font-semibold break-words">— {{your_name}}</p>
+    </section>
+
+    {{{ad_slot}}}
+  </main>
+
+  <script nonce="{{{nonce}}}">
+    (function () {
+      var el = document.getElementById('days');
+      var p = el.dataset.start.split('-').map(Number);
+      if (p.length === 3) {
+        var now = new Date();
+        var diff = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) - Date.UTC(p[0], p[1] - 1, p[2]);
+        el.textContent = Math.max(0, Math.floor(diff / 86400000)).toLocaleString('es');
+      }
+      // Partículas: corazones flotantes
+      setInterval(function () {
+        var h = document.createElement('span');
+        h.className = 'heart';
+        h.textContent = ['♥', '❤', '💗'][Math.floor(Math.random() * 3)];
+        h.style.left = Math.random() * 100 + 'vw';
+        h.style.fontSize = 14 + Math.random() * 26 + 'px';
+        h.style.opacity = 0.4 + Math.random() * 0.5;
+        h.style.animationDuration = 5 + Math.random() * 6 + 's';
+        document.body.appendChild(h);
+        setTimeout(function () { h.remove(); }, 11000);
+      }, 450);
+    })();
+  </script>
+</body>
+</html>

@@ -47,8 +47,12 @@ services:
       - lovetemplates:/var/www/app/templates
       - lovethumbs:/var/www/app/public/assets/thumbs
       - lovetpl:/var/www/app/public/assets/tpl
+      - loveuploads:/var/www/app/public/uploads
+      - lovestorage:/var/www/app/storage
 volumes:
   lovedb:
   lovetemplates:
   lovethumbs:
   lovetpl:
+  loveuploads:
+  lovestorage:
