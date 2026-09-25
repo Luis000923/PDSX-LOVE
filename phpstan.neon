@@ -1,4 +1,0 @@
-parameters:
-    level: 5
-    paths: [src, config, public, bin]
-    bootstrapFiles: [tests/bootstrap.php]   # define ROOT y carga las funciones globales
