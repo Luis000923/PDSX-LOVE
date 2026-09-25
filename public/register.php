@@ -26,31 +26,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Ese alias ya está en uso. Elige otro.';   // no revela nada sobre los correos registrados
     } else {
         try {
-            $pdo = db();
-            $pdo->beginTransaction();
-            // El primer usuario de la instalación queda como administrador principal.
-            $first = (int) $pdo->query('SELECT COUNT(*) FROM users')->fetchColumn() === 0;
-            // show_in_rankings = 1: el alias se pide de forma explícita y visible en este formulario (con aviso);
-            // se puede cambiar o desactivar en cualquier momento desde «Top».
-            $st = $pdo->prepare('INSERT INTO users (email, password_hash, is_admin, display_name, show_in_rankings) VALUES (?, ?, ?, ?, 1)');
-            $st->execute([$email, password_hash($pass, PASSWORD_DEFAULT), $first ? 1 : 0, $aliasIn['value']]);
-            $id = (int) $pdo->lastInsertId();
-            Referrals::codeFor($id);
-            if ($refCode !== '') {
-                Referrals::attach($pdo, $id, $refCode);   // código desconocido: se ignora sin avisar
+            $created = Registration::create($email, $pass, $aliasIn['value'], $refCode);
+            if ($created['id'] === null) {
+                $error = $created['error'];
+            } else {
+                login_user($created['id']);
+                if (EmailVerification::required()) {
+                    EmailVerification::issue($created['id']);   // si el envío falla, la pantalla del código permite reenviar
+                    redirect('verify_email.php' . auth_next_qs());
+                }
+                redirect(auth_next('create.php'));
             }
-            $pdo->commit();
-            login_user($id);
-            redirect(auth_next('create.php'));
         } catch (PDOException $ex) {
-            if (db()->inTransaction()) {
-                db()->rollBack();
-            }
-            // 23000 = violación de UNIQUE. Mensaje genérico para no filtrar qué correos existen.
-            $error = $ex->getCode() === '23000' ? 'No se pudo crear la cuenta con esos datos.' : 'Error inesperado.';
-            if ($ex->getCode() !== '23000') {
-                error_log($ex->getMessage());
-            }
+            error_log($ex->getMessage());
+            $error = 'Error inesperado.';
         }
     }
 }
@@ -64,7 +53,7 @@ page_start('Crear cuenta');
 <?php if ($googleBtn !== ''): ?>
   <?= $googleBtn ?>
   <p class="my-4 text-center text-xs uppercase tracking-widest text-slate-400">o con correo</p>
-  <p class="mb-4 text-xs text-slate-500">Con Google no eliges alias aquí: lo podrás poner en tu perfil cuando quieras.</p>
+  <p class="mb-4 text-xs text-slate-500">Con Google te preguntamos el alias nada más entrar.</p>
 <?php endif; ?>
 <form method="post" class="space-y-4" autocomplete="on">
   <?= csrf_field() ?>

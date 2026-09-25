@@ -23,6 +23,39 @@ final class GoogleAccount
     ];
 
     /**
+     * ¿Hay que enviar a esta cuenta a /auth/google_alias.php?
+     *
+     * True cuando la cuenta entra por Google, aún no tiene alias y nunca lo ha rechazado. Cubre tanto
+     * el alta nueva como las cuentas que ya existían cuando se añadió la pantalla (por eso no basta
+     * con mirar el `created` de signIn()): así el alias se pide una vez, y solo a quien puede elegirlo.
+     *
+     * Una cuenta creada con contraseña tiene `google_id` NULL, así que nunca entra aquí: en
+     * register.php el alias ya se pidió.
+     */
+    public static function needsAliasPrompt(int $userId): bool
+    {
+        $st = db()->prepare('SELECT google_id, display_name, alias_dismissed_at FROM users WHERE id = ?');
+        $st->execute([$userId]);
+        $row = $st->fetch();
+        if ($row === false) {
+            return false;
+        }
+        return is_string($row['google_id'] ?? null)
+            && $row['google_id'] !== ''
+            && ($row['display_name'] === null || $row['display_name'] === '')
+            && $row['alias_dismissed_at'] === null;
+    }
+
+    /**
+     * Marca que el usuario rechazó el alias, para no volvérselo a preguntar en cada acceso con Google.
+     * Guardar un alias después (desde el perfil) deja la marca sin efecto: ya no hay nada que preguntar.
+     */
+    public static function dismissAliasPrompt(int $userId): void
+    {
+        db()->prepare('UPDATE users SET alias_dismissed_at = UTC_TIMESTAMP() WHERE id = ?')->execute([$userId]);
+    }
+
+    /**
      * Inicia sesión con Google: reutiliza la cuenta existente, vincula una creada con contraseña
      * al mismo correo o da de alta una nueva (plan gratuito, saldo 0, código de referido).
      *
@@ -61,6 +94,7 @@ final class GoogleAccount
         $byEmail = self::findByEmail($email);
         if ($byEmail !== null) {
             self::assertUsable($byEmail);
+            self::assertLinkable($byEmail);
             self::link((int) $byEmail['id'], $sub, $avatar);
             return self::existing((int) $byEmail['id'], $byEmail);
         }
@@ -78,6 +112,7 @@ final class GoogleAccount
             }
             if (!self::hasGoogleId($row, $sub)) {
                 self::assertUsable($row);
+                self::assertLinkable($row);
                 self::link((int) $row['id'], $sub, $avatar);
             }
             return self::existing((int) $row['id'], $row);
@@ -125,7 +160,7 @@ final class GoogleAccount
      */
     public static function findByEmail(string $email): ?array
     {
-        $st = db()->prepare('SELECT id, email, google_id, is_suspended FROM users WHERE email = ?');
+        $st = db()->prepare('SELECT id, email, google_id, is_suspended, is_admin FROM users WHERE email = ?');
         $st->execute([$email]);
         $row = $st->fetch();
         return $row === false ? null : $row;
@@ -154,6 +189,24 @@ final class GoogleAccount
         if ((int) ($row['is_suspended'] ?? 0) === 1) {
             // Sin revelar el motivo de la suspensión, igual que en login.php.
             throw new GoogleAuthException('Cuenta suspendida (' . (int) $row['id'] . ').', 'Tu cuenta está suspendida. Contacta a soporte.');
+        }
+    }
+
+    /**
+     * Una cuenta de administrador nunca se vincula a Google por coincidencia de correo: quien consiga
+     * un Google con ese correo (p. ej. un alias/dominio reasignado) no puede heredar sus privilegios.
+     * El admin entra con su contraseña, o con el Google que ya tenga vinculado (rama findByGoogleId).
+     *
+     * @param array<string,mixed> $row
+     * @throws GoogleAuthException
+     */
+    private static function assertLinkable(array $row): void
+    {
+        if ((int) ($row['is_admin'] ?? 0) === 1) {
+            throw new GoogleAuthException(
+                'Vinculación por correo rechazada: la cuenta ' . (int) $row['id'] . ' es administradora.',
+                'Esta cuenta solo puede entrar con su correo y contraseña.'
+            );
         }
     }
 
@@ -186,13 +239,11 @@ final class GoogleAccount
         $pdo = db();
         $pdo->beginTransaction();
         try {
-            // El primer usuario de la instalación es el administrador principal (como en register.php).
-            $first = (int) $pdo->query('SELECT COUNT(*) FROM users')->fetchColumn() === 0;
             $st = $pdo->prepare(
                 'INSERT INTO users (email, password_hash, has_password, google_id, avatar_url, email_verified_at, last_login_at, is_admin)
-                 VALUES (?, ?, 0, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP(), ?)'
+                 VALUES (?, ?, 0, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP(), 0)'
             );
-            $st->execute([$email, self::unusablePassword(), $sub, self::safeAvatar($avatar), $first ? 1 : 0]);
+            $st->execute([$email, self::unusablePassword(), $sub, self::safeAvatar($avatar)]);
             $id = (int) $pdo->lastInsertId();
             Referrals::codeFor($id);
             if ($refCode !== '') {

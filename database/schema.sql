@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS users (
     email_verified_at DATETIME NULL,                       -- UTC; el momento en que se confirmó el buzón
     last_login_at DATETIME     NULL,                       -- UTC; último acceso con contraseña o con Google
     has_password  TINYINT(1)   NOT NULL DEFAULT 1,         -- 0 = cuenta creada con Google, sin contraseña propia
+    alias_dismissed_at DATETIME NULL,                       -- UTC; dijo «ahora no» en /auth/google_alias.php: no se le vuelve a preguntar
     bonus_tier_id INT          NULL,                       -- mejora TEMPORAL de plan (premio a creadores); no es el plan comprado
     bonus_tier_expires_at DATETIME NULL,                   -- UTC
     created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,

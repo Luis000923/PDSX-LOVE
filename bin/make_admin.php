@@ -8,8 +8,8 @@ declare(strict_types=1);
  *   php bin/make_admin.php correo@ej.com    Concede is_admin = 1 a ese usuario.
  *   php bin/make_admin.php correo@ej.com --revoke
  *
- * Existe porque el alta por web solo promueve al PRIMER usuario registrado:
- * este script es la vía única y auditable para cambiar eso después.
+ * Es la ÚNICA vía para crear administradores: ni register.php ni Google OAuth
+ * asignan is_admin (siempre nace en 0).
  */
 
 if (PHP_SAPI !== 'cli') {

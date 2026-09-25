@@ -11,7 +11,7 @@ declare(strict_types=1);
  */
 
 /** Versión de esquema esperada por el código (tabla `schema_version`). */
-const DB_SCHEMA_VERSION = 21;
+const DB_SCHEMA_VERSION = 23;
 
 /** Nombre del bloqueo consultivo que serializa las migraciones entre procesos. */
 const DB_MIGRATION_LOCK = 'lovepages_schema_migration';
@@ -125,6 +125,8 @@ function db_migrate(PDO $pdo): void
         db_migrate_v19($pdo);
         db_migrate_v20($pdo);
         db_migrate_v21($pdo);   // Google OAuth: google_id, avatar_url, email_verified_at, last_login_at, has_password
+        db_migrate_v22($pdo);   // verificación de correo por código
+        db_migrate_v23($pdo);   // el usuario rechazó el prompt de alias: no volver a preguntar
 
         $pdo->exec('CREATE TABLE IF NOT EXISTS schema_version (
             version    INT      NOT NULL PRIMARY KEY,
@@ -832,6 +834,39 @@ function db_migrate_v21(PDO $pdo): void
     $st->execute();
     if ((int) $st->fetchColumn() === 0) {
         $pdo->exec('ALTER TABLE users ADD CONSTRAINT chk_users_has_password CHECK (has_password IN (0, 1))');
+    }
+}
+
+/**
+ * v22: códigos de verificación de correo. Las cuentas anteriores (que nunca pasaron por verificación) se dan por
+ * verificadas para no dejar a nadie fuera al activar el SMTP.
+ */
+function db_migrate_v22(PDO $pdo): void
+{
+    $pdo->exec("CREATE TABLE IF NOT EXISTS email_verifications (
+        user_id      INT      NOT NULL PRIMARY KEY,
+        code_hash    CHAR(64) NOT NULL,
+        salt         CHAR(16) NOT NULL,
+        attempts     INT      NOT NULL DEFAULT 0,
+        expires_at   DATETIME NOT NULL,
+        last_sent_at DATETIME NOT NULL,
+        CONSTRAINT fk_emailver_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $pdo->exec('UPDATE users SET email_verified_at = created_at WHERE email_verified_at IS NULL');
+}
+
+/**
+ * v23: recuerda que el usuario rechazó el alias en /auth/google_alias.php.
+ *
+ * Sin esta marca, una cuenta de Google sin alias vería el prompt en cada inicio de sesión. NULL
+ * significa «nunca se le preguntó» (o sí, y no ha respondido) y es el estado por defecto de las
+ * cuentas nuevas, incluidas las que se crean antes de esta migración: la pregunta se hace igual,
+ * una sola vez.
+ */
+function db_migrate_v23(PDO $pdo): void
+{
+    if (!db_column_exists($pdo, 'users', 'alias_dismissed_at')) {
+        $pdo->exec('ALTER TABLE users ADD COLUMN `alias_dismissed_at` DATETIME NULL');
     }
 }
 

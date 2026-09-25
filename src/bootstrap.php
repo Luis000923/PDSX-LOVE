@@ -48,6 +48,9 @@ require_once ROOT . '/src/Sites.php';
 require_once ROOT . '/src/AdminUsers.php';
 require_once ROOT . '/src/Payments.php';
 require_once ROOT . '/src/Referrals.php';
+require_once ROOT . '/src/Registration.php';
+require_once ROOT . '/src/Mailer.php';
+require_once ROOT . '/src/EmailVerification.php';
 require_once ROOT . '/src/GoogleAccount.php';
 require_once ROOT . '/src/Checkin.php';
 require_once ROOT . '/src/Chests.php';
@@ -157,7 +160,7 @@ function load_session_user(): ?array
     if (empty($_SESSION['uid'])) {
         return null;
     }
-    $st = db()->prepare('SELECT id, email, password_hash, is_premium, is_admin, is_suspended, has_password, google_id, avatar_url, membership_tier_id, membership_expires_at, bonus_tier_id, bonus_tier_expires_at FROM users WHERE id = ?');
+    $st = db()->prepare('SELECT id, email, email_verified_at, password_hash, is_premium, is_admin, is_suspended, has_password, google_id, avatar_url, membership_tier_id, membership_expires_at, bonus_tier_id, bonus_tier_expires_at FROM users WHERE id = ?');
     $st->execute([(int) $_SESSION['uid']]);
     $row = $st->fetch() ?: null;
     // Suspendida, o la contraseña cambió desde otro dispositivo (revoca esta sesión: quien robó la cookie
@@ -188,6 +191,9 @@ function require_login(): array
     $u = current_user();
     if (!$u) {
         redirect('login.php');
+    }
+    if (!EmailVerification::isVerified($u)) {
+        redirect('verify_email.php' . auth_next_qs());   // correo sin verificar: solo puede ver la pantalla del código
     }
     return $u;
 }

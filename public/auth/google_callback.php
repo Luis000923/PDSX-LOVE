@@ -55,4 +55,14 @@ flash($result['created']
     : 'Sesión iniciada con Google.');
 
 // Las cuentas nuevas aterrizan en «crear»; las que ya existían, en «mis páginas».
-redirect(auth_next_path($state['next'], $result['created'] ? 'create.php' : 'dashboard.php'));
+// Una cuenta de Google sin alias se va antes a /auth/google_alias.php, que salta a este mismo destino
+// en cuanto se guarda (o si el usuario lo omite). La decisión se toma con needsAliasPrompt() y no con
+// el `created` de signIn(): así también preguntan las cuentas creadas antes de que existiera la pantalla.
+// OJO: aquí el valor de `next` viene del state (session), no de ?next=; auth_next_qs() leería $_GET y
+// devolvería ''. GoogleState::issue() ya lo limitó a premium|code, y el destino lo resuelve
+// auth_next_path() con su propia lista blanca, así que no hay open redirect.
+$nextQs = $state['next'] !== '' ? '?next=' . $state['next'] : '';
+$needsAlias = GoogleAccount::needsAliasPrompt($result['id']);
+redirect($needsAlias
+    ? url('auth/google_alias.php') . $nextQs
+    : auth_next_path($state['next'], $result['created'] ? 'create.php' : 'dashboard.php'));

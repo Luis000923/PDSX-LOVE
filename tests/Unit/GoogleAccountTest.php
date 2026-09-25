@@ -101,12 +101,35 @@ final class GoogleAccountTest extends TestCase
         self::assertMatchesRegularExpression('/^[A-Z2-9]{8}$/', (string) $u['referral_code'], 'referido propio asignado');
     }
 
-    public function testNewAccountIsNotAdminUnlessItIsTheFirstOne(): void
+    public function testNewAccountIsNeverAdmin(): void
     {
         $first = GoogleAccount::signIn('100000000000000000001', 'primero@example.com', true);
-        self::assertSame(1, (int) self::user($first['id'])['is_admin'], 'el primer usuario de la instalación es admin');
-        $second = GoogleAccount::signIn('100000000000000000002', 'segundo@example.com', true);
-        self::assertSame(0, (int) self::user($second['id'])['is_admin']);
+        self::assertSame(0, (int) self::user($first['id'])['is_admin'], 'ni el primer usuario es admin automático');
+    }
+
+    public function testAdminAccountIsNotLinkedByEmailMatch(): void
+    {
+        $admin = self::insertPasswordUser('admin@example.com');
+        self::$pdo->exec('UPDATE users SET is_admin = 1 WHERE id = ' . $admin);
+
+        try {
+            GoogleAccount::signIn(self::SUB, 'admin@example.com', true);
+            self::fail('debió rechazar la vinculación');
+        } catch (GoogleAuthException) {
+            // esperado
+        }
+        $u = self::user($admin);
+        self::assertNull($u['google_id']);
+        self::assertSame(1, (int) $u['is_admin']);
+        self::assertSame(1, (int) self::$pdo->query('SELECT COUNT(*) FROM users')->fetchColumn(), 'no se crea duplicado');
+    }
+
+    public function testAdminAlreadyLinkedToGoogleStillSignsIn(): void
+    {
+        $r = GoogleAccount::signIn(self::SUB, 'admin@example.com', true);
+        self::$pdo->exec('UPDATE users SET is_admin = 1 WHERE id = ' . $r['id']);
+        $again = GoogleAccount::signIn(self::SUB, 'admin@example.com', true);
+        self::assertSame($r['id'], $again['id']);
     }
 
     public function testGeneratedPasswordCannotLogIn(): void
@@ -258,5 +281,100 @@ final class GoogleAccountTest extends TestCase
     {
         $r = GoogleAccount::signIn(self::SUB, 'nueva@example.com', true, 'https://ejemplo.com/foto.jpg');
         self::assertNull(self::user($r['id'])['avatar_url']);
+    }
+
+    // ----------------------------------------------------------------- alias ---
+    //
+    // Google no pide alias: el alta lo deja en NULL a propósito y /auth/google_alias.php lo recoge
+    // después de iniciar sesión, cuando ya se sabe quién es. Estos tests fijan ese contrato: si
+    // alguien empieza a adivinar un alias en el INSERT, la pantalla intermedia dejaría de tener
+    // sentido y ocuparía el UNIQUE sin que nadie lo haya pedido.
+
+    public function testNewGoogleAccountHasNoAliasSoTheInterstitialHasSomethingToAsk(): void
+    {
+        $r = GoogleAccount::signIn(self::SUB, 'nueva@example.com', true);
+        $u = self::user($r['id']);
+        self::assertNull($u['display_name'], 'el alta no inventa un alias: se pregunta después');
+        self::assertSame(0, (int) $u['show_in_rankings'], 'no se opta por el ranking sin haberlo pedido');
+    }
+
+    public function testFirstAliasFromTheInterstitialIsFreeAndOptsIntoRankings(): void
+    {
+        $r = GoogleAccount::signIn(self::SUB, 'nueva@example.com', true);
+        self::$pdo->exec('UPDATE users SET coins = 50 WHERE id = ' . $r['id']);
+
+        $saved = Ranking::saveOptIn($r['id'], true, 'Luna_Sv');
+
+        self::assertTrue($saved['ok'], (string) $saved['error']);
+        self::assertSame(0, $saved['charged'], 'el primer alias nunca cuesta monedas');
+        $u = self::user($r['id']);
+        self::assertSame('Luna_Sv', $u['display_name']);
+        self::assertSame(1, (int) $u['show_in_rankings']);
+        self::assertSame(50, (int) $u['coins'], 'el saldo no se toca');
+    }
+
+    public function testInterstitialRefusesAnAliasAnotherUserAlreadyHas(): void
+    {
+        $other = self::insertPasswordUser('primero@example.com');
+        $r     = GoogleAccount::signIn(self::SUB, 'segundo@example.com', true);
+
+        $saved = Ranking::saveOptIn($r['id'], true, (string) self::user($other)['display_name']);
+
+        self::assertFalse($saved['ok']);
+        self::assertStringContainsString('en uso', (string) $saved['error']);
+        self::assertNull(self::user($r['id'])['display_name'], 'no se guarda un alias rechazado');
+    }
+
+    // ------------------------------------------------- a quién se pregunta el alias ---
+
+    public function testANewGoogleAccountIsAskedForItsAlias(): void
+    {
+        $r = GoogleAccount::signIn(self::SUB, 'nueva@example.com', true);
+        self::assertTrue(GoogleAccount::needsAliasPrompt($r['id']));
+    }
+
+    public function testAReturningGoogleAccountWithoutAnAliasIsAlsoAsked(): void
+    {
+        // El caso que motivó needsAliasPrompt(): una cuenta de Google que ya existía y sigue sin alias.
+        // Si el callback mirara el `created` de signIn() (false aquí) se iría al panel y nunca preguntaría.
+        GoogleAccount::signIn(self::SUB, 'nueva@example.com', true);
+
+        $again = GoogleAccount::signIn(self::SUB, 'nueva@example.com', true);
+
+        self::assertFalse($again['created'], 'la cuenta ya existía');
+        self::assertTrue(GoogleAccount::needsAliasPrompt($again['id']), 'también se le pregunta a quien ya existía');
+    }
+
+    public function testDismissingTheAliasStopsThePromptForGood(): void
+    {
+        $r = GoogleAccount::signIn(self::SUB, 'nueva@example.com', true);
+        self::assertTrue(GoogleAccount::needsAliasPrompt($r['id']));
+
+        GoogleAccount::dismissAliasPrompt($r['id']);
+
+        self::assertFalse(GoogleAccount::needsAliasPrompt($r['id']), 'no se martillea en cada login');
+        self::assertNull(self::user($r['id'])['display_name'], 'desechar el alias no inventa uno');
+    }
+
+    public function testASavedAliasAlsoStopsThePrompt(): void
+    {
+        $r = GoogleAccount::signIn(self::SUB, 'nueva@example.com', true);
+        Ranking::saveOptIn($r['id'], true, 'Luna_Sv');
+        self::assertFalse(GoogleAccount::needsAliasPrompt($r['id']));
+    }
+
+    public function testAPasswordAccountIsNeverAskedBecauseRegisterAlreadyDid(): void
+    {
+        $id = self::insertPasswordUser('correo@example.com');
+        self::assertFalse(GoogleAccount::needsAliasPrompt($id), 'google_id NULL: el alias ya se pidió en register.php');
+    }
+
+    public function testMigrationV23AddsTheDismissalColumnAndIsIdempotent(): void
+    {
+        self::assertTrue(db_column_exists(self::$pdo, 'users', 'alias_dismissed_at'));
+
+        db_migrate(self::$pdo);   // segunda pasada: no debe fallar
+
+        self::assertSame(DB_SCHEMA_VERSION, db_schema_version(self::$pdo));
     }
 }
