@@ -33,8 +33,14 @@ function wompi_hash_header(): string
     return '';
 }
 
+/** Contexto del webhook en curso (solo datos no sensibles: nunca la firma, el secreto ni el cuerpo). */
+$GLOBALS['wlog'] = ['ref' => '-', 'result' => '-', 'tx' => '-'];
+
+/** Un solo renglón por webhook en error_log, para diagnosticar pagos que no se habilitan. */
 function respond(int $status, string $body): never
 {
+    $c = $GLOBALS['wlog'];
+    error_log(sprintf('Wompi webhook -> HTTP %d "%s" ref=%s resultado=%s tx=%s ip=%s', $status, $body, $c['ref'], $c['result'], $c['tx'], client_ip()));
     http_response_code($status);
     exit($body);
 }
@@ -42,6 +48,21 @@ function respond(int $status, string $body): never
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     respond(405, '');
 }
+
+// Diagnóstico de entrega: qué llegó (solo nombres de cabecera y tamaños; nunca valores ni cuerpo).
+$seenHeaders = [];
+$names = array_map('strval', array_keys($_SERVER));
+if (function_exists('apache_request_headers')) {
+    $names = array_merge($names, array_map('strval', array_keys(apache_request_headers())));   // Apache/LiteSpeed dejan aquí las cabeceras con "_"
+}
+foreach ($names as $k) {
+    if (stripos($k, 'WOMPI') !== false) {
+        $seenHeaders[] = $k;
+    }
+}
+error_log(sprintf('Wompi webhook recibido: ip=%s bytes=%d content-type=%s cabeceras_wompi=[%s] wompi_hash=%s',
+    client_ip(), (int) ($_SERVER['CONTENT_LENGTH'] ?? 0), (string) ($_SERVER['CONTENT_TYPE'] ?? '-'),
+    implode(',', $seenHeaders), wompi_hash_header() !== '' ? 'presente' : 'AUSENTE'));
 
 const WEBHOOK_MAX_BYTES = 65536;
 $raw = (string) file_get_contents('php://input', false, null, 0, WEBHOOK_MAX_BYTES + 1);
@@ -51,6 +72,7 @@ if (strlen($raw) > WEBHOOK_MAX_BYTES) {
 
 // 1) Autenticidad sobre el cuerpo tal cual llegó (sin decodificar ni reformatear).
 if (!WompiClient::verifyWebhook($raw, wompi_hash_header(), wompi_config()['api_secret'])) {
+    error_log('Wompi webhook: firma inválida (' . (wompi_hash_header() === '' ? 'cabecera wompi_hash ausente' : 'HMAC no coincide: revisa WOMPI_API_SECRET') . ')');
     respond(401, 'invalid signature');
 }
 
@@ -60,6 +82,7 @@ $tx = is_array($payload) ? WompiClient::parseWebhook($payload) : null;
 if ($tx === null) {
     respond(400, 'bad payload');
 }
+$GLOBALS['wlog'] = ['ref' => $tx['identifier'], 'result' => $tx['result'], 'tx' => $tx['transaction_id'] !== '' ? $tx['transaction_id'] : '-'];
 
 // Solo ExitosaAprobada concede acceso (Premium o plantilla); cualquier otro resultado se acusa y se ignora.
 if ($tx['result'] !== WOMPI_RESULT_APPROVED) {
