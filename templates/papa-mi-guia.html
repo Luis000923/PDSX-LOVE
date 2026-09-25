@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'nonce-{{{nonce}}}' https://cdn.tailwindcss.com">
+<title>Para {{partner_name}}</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;600;700&display=swap" rel="stylesheet">
+<script nonce="{{{nonce}}}" src="https://cdn.tailwindcss.com"></script>
+<style>html,body{overflow-x:hidden}body{font-family:'Barlow',sans-serif;background:#17231f}.condensed{font-family:'Barlow Condensed',sans-serif}.badge{transform:rotate(-4deg);box-shadow:6px 6px 0 #f59e0b}</style>
+</head>
+<body class="min-h-screen px-4 py-12 text-stone-100">
+<main class="mx-auto w-full max-w-md">
+  <div class="flex items-center gap-3"><div class="h-1 flex-1 bg-amber-400"></div><span class="text-3xl text-amber-400">&#9733;</span><div class="h-1 flex-1 bg-amber-400"></div></div>
+  <p class="mt-8 text-sm font-bold uppercase tracking-[.25em] text-amber-400">A mi gran referente</p>
+  <h1 class="condensed mt-2 text-[clamp(3rem,14vw,5rem)] uppercase leading-none break-words">{{partner_name}}</h1>
+  <div class="badge mt-7 inline-block rounded-xl bg-amber-400 px-4 py-2 text-sm font-bold uppercase text-stone-950">El mejor pap&aacute;</div>
+  <section class="mt-10 rounded-2xl border border-white/10 bg-white/5 p-7 text-left leading-relaxed break-words [overflow-wrap:anywhere]"><p class="whitespace-pre-line">{{message}}</p><p class="mt-6 text-right font-bold text-amber-400">Gracias por todo, {{your_name}}</p></section>
+  {{{ad_slot}}}
+</main>
+</body>
+</html>

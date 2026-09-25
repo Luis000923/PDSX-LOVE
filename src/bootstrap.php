@@ -30,13 +30,15 @@ function env(string $key, ?string $default = null): ?string
     return ($real !== false && $real !== '') ? $real : ($vars[$key] ?? $default);
 }
 
-$debug = env('APP_DEBUG', '0') === '1';
+// Nunca mostrar errores si la URL es https (producción), aunque APP_DEBUG venga mal puesto.
+$debug = env('APP_DEBUG', '0') === '1' && !str_starts_with((string) env('APP_URL', ''), 'https://');
 error_reporting(E_ALL);
 ini_set('display_errors', $debug ? '1' : '0');
 ini_set('log_errors', '1');
 
 require_once ROOT . '/config/database.php';
 require_once ROOT . '/config/wompi.php';
+require_once ROOT . '/config/google.php';
 require_once ROOT . '/src/Template.php';
 require_once ROOT . '/src/PhpTemplate.php';
 require_once ROOT . '/src/Admin.php';
@@ -47,6 +49,10 @@ require_once ROOT . '/src/Sites.php';
 require_once ROOT . '/src/AdminUsers.php';
 require_once ROOT . '/src/Payments.php';
 require_once ROOT . '/src/Referrals.php';
+require_once ROOT . '/src/Registration.php';
+require_once ROOT . '/src/Mailer.php';
+require_once ROOT . '/src/EmailVerification.php';
+require_once ROOT . '/src/GoogleAccount.php';
 require_once ROOT . '/src/Checkin.php';
 require_once ROOT . '/src/Chests.php';
 require_once ROOT . '/src/Profile.php';
@@ -78,7 +84,16 @@ function csp_nonce(): string
 
 function client_ip(): string
 {
-    return $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    // Detrás de un proxy/CDN: X-Forwarded-For solo se acepta si la conexión viene de un proxy listado en TRUSTED_PROXIES.
+    $trusted = array_filter(array_map('trim', explode(',', (string) env('TRUSTED_PROXIES', ''))));
+    if ($trusted && in_array($ip, $trusted, true) && isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+        $fwd = trim(explode(',', (string) $_SERVER['HTTP_X_FORWARDED_FOR'])[0]);
+        if (filter_var($fwd, FILTER_VALIDATE_IP) !== false) {
+            return $fwd;
+        }
+    }
+    return $ip;
 }
 
 // ---------- Cabeceras y sesión ----------
@@ -87,15 +102,18 @@ if (!defined('NO_SESSION')) {
     header('X-Frame-Options: DENY');
     header('Referrer-Policy: strict-origin-when-cross-origin');
     header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
+    // Los hosts de las fotos de Google se toman de la misma lista que valida GoogleAccount::safeAvatar,
+    // para que la CSP no se quede corta si Google sirve la imagen desde lh4/lh5/lh6.
+    $avatarCsp = implode(' ', array_map(static fn (string $h): string => 'https://' . $h, GoogleAccount::AVATAR_HOSTS));
     header("Content-Security-Policy: default-src 'self'; "
         . "script-src 'self' 'nonce-" . csp_nonce() . "' https://cdn.tailwindcss.com; "
         . "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-        . "font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; "
+        . "font-src https://fonts.gstatic.com; img-src 'self' data: " . $avatarCsp . "; connect-src 'self'; "
         . "frame-ancestors 'none'; base-uri 'none'; form-action 'self' https://*.wompi.sv");
 
     $secure = str_starts_with((string) env('APP_URL'), 'https://');
     if ($secure) {
-        header('Strict-Transport-Security: max-age=31536000');
+        header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
     }
     ini_set('session.use_strict_mode', '1');
     ini_set('session.use_only_cookies', '1');
@@ -152,7 +170,7 @@ function load_session_user(): ?array
     if (empty($_SESSION['uid'])) {
         return null;
     }
-    $st = db()->prepare('SELECT id, email, password_hash, is_premium, is_admin, is_suspended, membership_tier_id, membership_expires_at, bonus_tier_id, bonus_tier_expires_at FROM users WHERE id = ?');
+    $st = db()->prepare('SELECT id, email, email_verified_at, password_hash, is_premium, is_admin, is_suspended, has_password, google_id, avatar_url, membership_tier_id, membership_expires_at, bonus_tier_id, bonus_tier_expires_at FROM users WHERE id = ?');
     $st->execute([(int) $_SESSION['uid']]);
     $row = $st->fetch() ?: null;
     // Suspendida, o la contraseña cambió desde otro dispositivo (revoca esta sesión: quien robó la cookie
@@ -183,6 +201,9 @@ function require_login(): array
     $u = current_user();
     if (!$u) {
         redirect('login.php');
+    }
+    if (!EmailVerification::isVerified($u)) {
+        redirect('verify_email.php' . auth_next_qs());   // correo sin verificar: solo puede ver la pantalla del código
     }
     return $u;
 }

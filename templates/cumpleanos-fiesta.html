@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'nonce-{{{nonce}}}' https://cdn.tailwindcss.com">
+<title>Feliz cumpleaños, {{partner_name}}</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Nunito:wght@400;700&display=swap" rel="stylesheet">
+<script nonce="{{{nonce}}}" src="https://cdn.tailwindcss.com"></script>
+<style>
+html,body{overflow-x:hidden}body{font-family:'Nunito',sans-serif}.title{font-family:'Baloo 2',sans-serif}.balloon{animation:float 4s ease-in-out infinite}.balloon:nth-child(2){animation-delay:-1s}.balloon:nth-child(3){animation-delay:-2s}@keyframes float{50%{transform:translateY(-12px) rotate(3deg)}}@media(prefers-reduced-motion:reduce){.balloon{animation:none}}
+</style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-sky-400 via-fuchsia-500 to-amber-400 text-white px-4 py-10">
+<main class="mx-auto w-full max-w-md text-center">
+  <div aria-hidden="true" class="flex justify-center gap-5 text-5xl"><span class="balloon">🎈</span><span class="balloon">🎉</span><span class="balloon">🎈</span></div>
+  <p class="mt-4 text-sm font-bold uppercase tracking-[.2em] text-white/80">Hoy se celebra a</p>
+  <h1 class="title mt-1 text-[clamp(2.2rem,11vw,4rem)] font-extrabold leading-none break-words">{{partner_name}}</h1>
+  <p class="mt-3 text-lg">¡Feliz cumpleaños!</p>
+  <section class="mt-8 rounded-[2rem] bg-white p-6 text-left text-slate-800 shadow-2xl">
+    <p class="text-sm font-bold uppercase tracking-widest text-fuchsia-600">Un mensaje de {{your_name}}</p>
+    <p class="mt-4 whitespace-pre-line break-words leading-relaxed [overflow-wrap:anywhere]">{{message}}</p>
+    <p class="mt-6 text-right font-bold text-fuchsia-600">Con cariño, {{your_name}}</p>
+  </section>
+  {{{ad_slot}}}
+</main>
+</body>
+</html>

@@ -1,0 +1,13 @@
+.git
+.env
+.env.*
+!.env.docker
+vendor
+storage/*
+public/uploads/*
+public/assets/thumbs/*
+tests/_output
+*.log
+client_secret*.json
+*.apps.googleusercontent.com.json
+*.sqlite*

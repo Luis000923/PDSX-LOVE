@@ -12,6 +12,7 @@ composer.phar
 
 # Base de datos local y respaldos
 database/*.sqlite*
+**/*.sqlite*
 *.sql.gz
 *.sql.bak
 
@@ -53,3 +54,7 @@ screenshots/
 .claude/scheduled_tasks.lock
 .claude/agent-memory-local/
 .claude/settings.local.json
+
+client_secret.json
+client_secret_*.apps.googleusercontent.com.json
+*.apps.googleusercontent.com.json

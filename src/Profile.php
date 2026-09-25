@@ -26,7 +26,13 @@ final class Profile
         return null;
     }
 
-    /** Cambia la contraseña verificando la actual. Devuelve un mensaje de error, o null si se guardó. */
+    /**
+     * Cambia la contraseña.
+     *
+     * Las cuentas creadas con Google no tienen contraseña propia (`users.has_password = 0` y su
+     * `password_hash` es aleatorio): en ese caso se fija la nueva SIN pedir la actual, porque nadie
+     * la conoce. En cuanto se fija, la cuenta entra por las dos vías.
+     */
     public static function changePassword(int $userId, string $current, string $new, string $confirm): ?string
     {
         if (strlen($new) < 8 || strlen($new) > 72) {   // bcrypt trunca a 72 bytes
@@ -35,13 +41,15 @@ final class Profile
         if (!hash_equals($new, $confirm)) {
             return 'La confirmación no coincide.';
         }
-        $st = db()->prepare('SELECT password_hash FROM users WHERE id = ?');
+        $st = db()->prepare('SELECT password_hash, has_password FROM users WHERE id = ?');
         $st->execute([$userId]);
-        $hash = $st->fetchColumn();
-        if (!is_string($hash) || !password_verify($current, $hash)) {
+        $row = $st->fetch();
+        $hash = is_array($row) && is_string($row['password_hash'] ?? null) ? $row['password_hash'] : '';
+        $hasPassword = is_array($row) && (int) ($row['has_password'] ?? 1) === 1;
+        if ($hash === '' || ($hasPassword && !password_verify($current, $hash))) {
             return 'La contraseña actual no es correcta.';
         }
-        db()->prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+        db()->prepare('UPDATE users SET password_hash = ?, has_password = 1 WHERE id = ?')
             ->execute([password_hash($new, PASSWORD_DEFAULT), $userId]);
         return null;
     }

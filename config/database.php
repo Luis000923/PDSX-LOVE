@@ -11,7 +11,7 @@ declare(strict_types=1);
  */
 
 /** Versión de esquema esperada por el código (tabla `schema_version`). */
-const DB_SCHEMA_VERSION = 14;
+const DB_SCHEMA_VERSION = 23;
 
 /** Nombre del bloqueo consultivo que serializa las migraciones entre procesos. */
 const DB_MIGRATION_LOCK = 'lovepages_schema_migration';
@@ -118,6 +118,15 @@ function db_migrate(PDO $pdo): void
         db_migrate_v12($pdo);
         db_migrate_v13($pdo);
         db_migrate_v14($pdo);
+        db_migrate_v15($pdo);
+        db_migrate_v16($pdo);
+        db_migrate_v17($pdo);
+        db_migrate_v18($pdo);
+        db_migrate_v19($pdo);
+        db_migrate_v20($pdo);
+        db_migrate_v21($pdo);   // Google OAuth: google_id, avatar_url, email_verified_at, last_login_at, has_password
+        db_migrate_v22($pdo);   // verificación de correo por código
+        db_migrate_v23($pdo);   // el usuario rechazó el prompt de alias: no volver a preguntar
 
         $pdo->exec('CREATE TABLE IF NOT EXISTS schema_version (
             version    INT      NOT NULL PRIMARY KEY,
@@ -631,6 +640,236 @@ function db_migrate_v14(PDO $pdo): void
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 }
 
+/** v15: plantillas HTML adicionales para cumpleaños, aniversarios y otras ocasiones. */
+function db_migrate_v15(PDO $pdo): void
+{
+    $templates = [
+        ['cumpleanos-fiesta', 'Fiesta de cumpleaños', 'cumpleanos', 'cumpleanos-fiesta.html', 'Una sorpresa colorida para celebrar su día.', 0, 0],
+        ['aniversario-constelacion', 'Constelación de aniversario', 'aniversario', 'aniversario-constelacion.html', 'Una historia de amor escrita entre estrellas.', 1, 5],
+        ['declaracion-carta', 'Carta de declaración', 'declaracion', 'declaracion-carta.html', 'Una carta elegante para decir lo que sientes.', 0, 0],
+        ['amistad-infinita', 'Amistad infinita', 'especial', 'amistad-infinita.html', 'Un homenaje alegre para tu mejor amigo o amiga.', 0, 0],
+        ['graduacion-orgullo', 'Orgullo por tu graduación', 'especial', 'graduacion-orgullo.html', 'Celebra una meta cumplida y el próximo capítulo.', 0, 0],
+        ['gracias-siempre', 'Gracias siempre', 'especial', 'gracias-siempre.html', 'Una nota cálida para agradecer a alguien especial.', 0, 0],
+        ['navidad-juntos', 'Navidad juntos', 'especial', 'navidad-juntos.html', 'Un saludo navideño lleno de cariño.', 0, 0],
+        ['distancia-contigo', 'A pesar de la distancia', 'especial', 'distancia-contigo.html', 'Un mensaje para mantener cerca a quien está lejos.', 0, 0],
+    ];
+    $st = $pdo->prepare('INSERT IGNORE INTO templates (slug, name, kind, category, file, description, is_premium, price_coins, is_active) VALUES (?, ?, \'html\', ?, ?, ?, ?, ?, 1)');
+    foreach ($templates as $template) {
+        $st->execute($template);
+    }
+}
+
+/** v16: plantillas HTML para fechas familiares, disculpas, bodas y logros. */
+function db_migrate_v16(PDO $pdo): void
+{
+    $templates = [
+        ['san-valentin-luz', 'San Valentín a la luz', 'romantico', 'san-valentin-luz.html', 'Una dedicatoria luminosa para el amor de tu vida.', 1, 5],
+        ['mama-mi-heroina', 'Mamá, mi heroína', 'especial', 'mama-mi-heroina.html', 'Un homenaje tierno para mamá.', 0, 0],
+        ['papa-mi-guia', 'Papá, mi guía', 'especial', 'papa-mi-guia.html', 'Un reconocimiento especial para papá.', 0, 0],
+        ['perdon-nuevo-comienzo', 'Un nuevo comienzo', 'declaracion', 'perdon-nuevo-comienzo.html', 'Una forma sincera de pedir perdón.', 0, 0],
+        ['bienvenido-bebe', 'Bienvenido, bebé', 'especial', 'bienvenido-bebe.html', 'Una bienvenida dulce para una nueva vida.', 0, 0],
+        ['boda-para-siempre', 'Boda para siempre', 'aniversario', 'boda-para-siempre.html', 'Una promesa elegante para celebrar el matrimonio.', 1, 5],
+        ['mi-mejor-amigo', 'Mi mejor amigo', 'especial', 'mi-mejor-amigo.html', 'Una dedicatoria divertida para tu amistad.', 0, 0],
+        ['logro-brillante', 'Logro brillante', 'especial', 'logro-brillante.html', 'Celebra una meta alcanzada con orgullo.', 0, 0],
+    ];
+    $st = $pdo->prepare('INSERT IGNORE INTO templates (slug, name, kind, category, file, description, is_premium, price_coins, is_active) VALUES (?, ?, \'html\', ?, ?, ?, ?, ?, 1)');
+    foreach ($templates as $template) {
+        $st->execute($template);
+    }
+}
+
+/** v17: colección minimalista adicional para amor, familia, amistad y celebraciones. */
+function db_migrate_v17(PDO $pdo): void
+{
+    $templates = [
+        ['amor-editorial', 'Amor editorial', 'romantico', 'amor-editorial.html', 'Una dedicatoria minimalista con estilo de revista.', 1, 5],
+        ['carta-aurora', 'Carta de buenos días', 'romantico', 'carta-aurora.html', 'Una nota luminosa para comenzar el día.', 0, 0],
+        ['aniversario-linea', 'Aniversario en línea', 'aniversario', 'aniversario-linea.html', 'Una celebración sobria de la historia compartida.', 0, 0],
+        ['promesa-sencilla', 'Promesa sencilla', 'declaracion', 'promesa-sencilla.html', 'Un mensaje íntimo para elegir a alguien cada día.', 1, 5],
+        ['feliz-cumpleanos', 'Cumpleaños esencial', 'cumpleanos', 'feliz-cumpleanos.html', 'Una felicitación limpia y alegre.', 0, 0],
+        ['gracias-minimal', 'Gracias minimal', 'especial', 'gracias-minimal.html', 'Una nota breve para decir gracias con elegancia.', 0, 0],
+        ['te-extrano', 'Te extraño', 'romantico', 'te-extrano.html', 'Un mensaje nocturno para acortar la distancia.', 0, 0],
+        ['buenos-dias-amor', 'Buenos días, amor', 'romantico', 'buenos-dias-amor.html', 'Una sorpresa cálida para empezar la mañana.', 0, 0],
+        ['buenas-noches-cielo', 'Buenas noches, cielo', 'romantico', 'buenas-noches-cielo.html', 'Una despedida dulce antes de dormir.', 0, 0],
+        ['felicidades-logro', 'Felicidades por tu logro', 'especial', 'felicidades-logro.html', 'Un reconocimiento elegante para una meta alcanzada.', 1, 5],
+        ['graduacion-elegante', 'Graduación elegante', 'especial', 'graduacion-elegante.html', 'Una felicitación editorial para cerrar una etapa.', 0, 0],
+        ['nueva-casa', 'Nueva casa', 'especial', 'nueva-casa.html', 'Un deseo cálido para un nuevo hogar.', 0, 0],
+        ['nuevo-trabajo', 'Nuevo trabajo', 'especial', 'nuevo-trabajo.html', 'Mucho éxito en el próximo capítulo profesional.', 0, 0],
+        ['dia-especial', 'Un día especial', 'especial', 'dia-especial.html', 'Una sorpresa hermosa porque sí.', 0, 0],
+        ['mama-calma', 'Mamá, gracias por tanto', 'especial', 'mama-calma.html', 'Una dedicatoria serena y amorosa para mamá.', 0, 0],
+        ['papa-clasico', 'Papá, mi guía', 'especial', 'papa-clasico.html', 'Un mensaje clásico para agradecer a papá.', 0, 0],
+        ['amistad-coral', 'Amistad de la buena', 'especial', 'amistad-coral.html', 'Una dedicatoria divertida para una amistad especial.', 0, 0],
+        ['disculpa-blanca', 'Disculpa blanca', 'declaracion', 'disculpa-blanca.html', 'Una disculpa honesta y tranquila.', 0, 0],
+        ['boda-marfil', 'Boda marfil', 'aniversario', 'boda-marfil.html', 'Una promesa elegante para una vida juntos.', 1, 5],
+        ['mascota-companera', 'Mascota compañera', 'especial', 'mascota-companera.html', 'Una dedicatoria tierna para tu compañero de aventuras.', 0, 0],
+    ];
+    $st = $pdo->prepare('INSERT IGNORE INTO templates (slug, name, kind, category, file, description, is_premium, price_coins, is_active) VALUES (?, ?, \'html\', ?, ?, ?, ?, ?, 1)');
+    foreach ($templates as $template) {
+        $st->execute($template);
+    }
+}
+
+/** v18: cuarenta templates minimalistas para amor, familia, amistad y ocasiones diarias. */
+function db_migrate_v18(PDO $pdo): void
+{
+    $templates = [
+        ['amor-quieto', 'Amor quieto', 'romantico', 'amor-quieto.html', 'Una dedicatoria serena y elegante.', 1, 5],
+        ['latido-rosa', 'Latido rosa', 'romantico', 'latido-rosa.html', 'Una carta para la persona favorita.', 0, 0],
+        ['rosa-secreta', 'Rosa secreta', 'romantico', 'rosa-secreta.html', 'Una dedicatoria tierna y discreta.', 0, 0],
+        ['carta-lino', 'Carta de lino', 'romantico', 'carta-lino.html', 'Una carta cálida de estilo editorial.', 0, 0],
+        ['siempre-contigo', 'Siempre contigo', 'romantico', 'siempre-contigo.html', 'Un mensaje para elegir a alguien siempre.', 1, 5],
+        ['mi-lugar-seguro', 'Mi lugar seguro', 'romantico', 'mi-lugar-seguro.html', 'Una dedicatoria para quien da tranquilidad.', 0, 0],
+        ['mi-persona', 'Mi persona', 'romantico', 'mi-persona.html', 'Una nota para alguien extraordinario.', 0, 0],
+        ['nuestro-capitulo', 'Nuestro capítulo', 'aniversario', 'nuestro-capitulo.html', 'Una página más de la historia compartida.', 0, 0],
+        ['amores-de-domingo', 'Amores de domingo', 'romantico', 'amores-de-domingo.html', 'Una dedicatoria tranquila para compartir.', 0, 0],
+        ['pequena-sorpresa', 'Pequeña sorpresa', 'especial', 'pequena-sorpresa.html', 'Un detalle bonito porque sí.', 0, 0],
+        ['cafe-y-carino', 'Café y cariño', 'romantico', 'cafe-y-carino.html', 'Una pausa cálida para alguien especial.', 0, 0],
+        ['papel-dorado', 'Papel dorado', 'especial', 'papel-dorado.html', 'Una dedicatoria sobria para una ocasión especial.', 1, 5],
+        ['manana-mejor', 'Mañana será mejor', 'especial', 'manana-mejor.html', 'Un mensaje de ánimo y esperanza.', 0, 0],
+        ['tu-sonrisa', 'Tu sonrisa', 'romantico', 'tu-sonrisa.html', 'Una razón para sonreír hoy.', 0, 0],
+        ['abrazo-a-distancia', 'Abrazo a distancia', 'especial', 'abrazo-a-distancia.html', 'Un abrazo para quien está lejos.', 0, 0],
+        ['eres-increible', 'Eres increíble', 'especial', 'eres-increible.html', 'Un reconocimiento especial y positivo.', 0, 0],
+        ['mi-orgullo', 'Mi orgullo', 'especial', 'mi-orgullo.html', 'Un mensaje de admiración por sus logros.', 0, 0],
+        ['primer-paso', 'Primer paso', 'especial', 'primer-paso.html', 'Un impulso para comenzar algo grande.', 0, 0],
+        ['te-elijo', 'Te elijo', 'declaracion', 'te-elijo.html', 'Una promesa sencilla y romántica.', 1, 5],
+        ['familia-siempre', 'Familia siempre', 'especial', 'familia-siempre.html', 'Una dedicatoria para celebrar el hogar.', 0, 0],
+        ['mi-hermana', 'Para mi hermana', 'especial', 'mi-hermana.html', 'Una nota para una cómplice de vida.', 0, 0],
+        ['mi-hermano', 'Para mi hermano', 'especial', 'mi-hermano.html', 'Un mensaje para un compañero de siempre.', 0, 0],
+        ['feliz-dia', 'Feliz día', 'especial', 'feliz-dia.html', 'Una sorpresa sencilla para alegrar el día.', 0, 0],
+        ['mes-de-amor', 'Mes de amor', 'aniversario', 'mes-de-amor.html', 'Una celebración íntima de la relación.', 0, 0],
+        ['te-admiro', 'Te admiro', 'especial', 'te-admiro.html', 'Un reconocimiento sincero.', 0, 0],
+        ['un-mensaje-bonito', 'Un mensaje bonito', 'especial', 'un-mensaje-bonito.html', 'Una dedicatoria para alegrar a alguien.', 0, 0],
+        ['celebrar-te', 'Celebrarte', 'especial', 'celebrar-te.html', 'Una felicitación para una persona especial.', 0, 0],
+        ['eres-mi-hogar', 'Eres mi hogar', 'romantico', 'eres-mi-hogar.html', 'Una declaración de amor y pertenencia.', 1, 5],
+        ['por-siempre-juntos', 'Por siempre juntos', 'aniversario', 'por-siempre-juntos.html', 'Una promesa para compartir la vida.', 1, 5],
+        ['mi-mejor-dia', 'Mi mejor día', 'especial', 'mi-mejor-dia.html', 'Una memoria para guardar con cariño.', 0, 0],
+        ['gracias-por-estar', 'Gracias por estar', 'especial', 'gracias-por-estar.html', 'Una nota de gratitud profunda.', 0, 0],
+        ['mi-estrella', 'Mi estrella', 'romantico', 'mi-estrella.html', 'Un mensaje para alguien que siempre brilla.', 0, 0],
+        ['un-beso', 'Un beso', 'romantico', 'un-beso.html', 'Un detalle pequeño lleno de amor.', 0, 0],
+        ['contigo-todo', 'Contigo todo', 'romantico', 'contigo-todo.html', 'Una promesa cotidiana para compartir.', 0, 0],
+        ['brindis-por-ti', 'Un brindis por ti', 'especial', 'brindis-por-ti.html', 'Una celebración elegante y cálida.', 0, 0],
+        ['pequenos-momentos', 'Pequeños momentos', 'romantico', 'pequenos-momentos.html', 'Una dedicatoria para lo sencillo.', 0, 0],
+        ['te-quiero-cerca', 'Te quiero cerca', 'romantico', 'te-quiero-cerca.html', 'Una nota para mantener cerca a alguien.', 0, 0],
+        ['eres-mi-paz', 'Eres mi paz', 'romantico', 'eres-mi-paz.html', 'Una dedicatoria para quien tranquiliza.', 1, 5],
+        ['nuestro-futuro', 'Nuestro futuro', 'aniversario', 'nuestro-futuro.html', 'Un mensaje para mirar adelante juntos.', 0, 0],
+        ['sonrie-hoy', 'Sonríe hoy', 'especial', 'sonrie-hoy.html', 'Un recordatorio amable para alegrar el día.', 0, 0],
+    ];
+    $st = $pdo->prepare('INSERT IGNORE INTO templates (slug, name, kind, category, file, description, is_premium, price_coins, is_active) VALUES (?, ?, \'html\', ?, ?, ?, ?, ?, 1)');
+    foreach ($templates as $template) {
+        $st->execute($template);
+    }
+}
+
+/** v19: dieciocho templates para apoyo, familia, amistad y celebraciones. */
+function db_migrate_v19(PDO $pdo): void
+{
+    $templates = [
+        ['amor-en-detalle', 'Amor en detalle', 'romantico', 'amor-en-detalle.html', 'Una dedicatoria para los pequeños detalles.', 0, 0],
+        ['carta-azul', 'Carta azul', 'romantico', 'carta-azul.html', 'Una carta tranquila para alguien especial.', 0, 0],
+        ['carta-roja', 'Carta roja', 'romantico', 'carta-roja.html', 'Una carta intensa y romántica.', 1, 5],
+        ['domingo-contigo', 'Domingo contigo', 'romantico', 'domingo-contigo.html', 'Una dedicatoria para disfrutar sin prisa.', 0, 0],
+        ['buenas-noticias', 'Buenas noticias', 'especial', 'buenas-noticias.html', 'Una sorpresa para celebrar una buena noticia.', 0, 0],
+        ['mucho-animo', 'Mucho ánimo', 'especial', 'mucho-animo.html', 'Un mensaje para acompañar un día difícil.', 0, 0],
+        ['nuevo-comienzo', 'Nuevo comienzo', 'especial', 'nuevo-comienzo.html', 'Una nota para abrir una nueva etapa.', 0, 0],
+        ['gracias-amiga', 'Gracias, amiga', 'especial', 'gracias-amiga.html', 'Una dedicatoria para una amiga especial.', 0, 0],
+        ['gracias-amigo', 'Gracias, amigo', 'especial', 'gracias-amigo.html', 'Una dedicatoria para un amigo especial.', 0, 0],
+        ['cumpleanos-elegante', 'Cumpleaños elegante', 'cumpleanos', 'cumpleanos-elegante.html', 'Una felicitación sobria y hermosa.', 1, 5],
+        ['aniversario-dorado', 'Aniversario dorado', 'aniversario', 'aniversario-dorado.html', 'Una celebración de amor duradero.', 1, 5],
+        ['te-apoyo', 'Te apoyo', 'especial', 'te-apoyo.html', 'Una promesa de acompañamiento.', 0, 0],
+        ['te-escucho', 'Te escucho', 'especial', 'te-escucho.html', 'Un mensaje de presencia y empatía.', 0, 0],
+        ['eres-mi-fortaleza', 'Eres mi fortaleza', 'romantico', 'eres-mi-fortaleza.html', 'Una dedicatoria para quien sostiene.', 0, 0],
+        ['un-dia-inolvidable', 'Un día inolvidable', 'especial', 'un-dia-inolvidable.html', 'Una memoria especial para guardar.', 0, 0],
+        ['mi-complice', 'Mi cómplice', 'especial', 'mi-complice.html', 'Una dedicatoria para tu persona de confianza.', 0, 0],
+        ['familia-corazon', 'Familia de corazón', 'especial', 'familia-corazon.html', 'Un mensaje para alguien que es familia.', 0, 0],
+        ['felicidades-siempre', 'Felicidades siempre', 'especial', 'felicidades-siempre.html', 'Una felicitación para cualquier logro.', 0, 0],
+    ];
+    $st = $pdo->prepare('INSERT IGNORE INTO templates (slug, name, kind, category, file, description, is_premium, price_coins, is_active) VALUES (?, ?, \'html\', ?, ?, ?, ?, ?, 1)');
+    foreach ($templates as $template) {
+        $st->execute($template);
+    }
+}
+
+/** v20: registrar los tres templates HTML históricos que ya existían en el repositorio. */
+function db_migrate_v20(PDO $pdo): void
+{
+    $templates = [
+        ['historia-numeros', 'Historia en números', 'especial', 'historia-numeros.html', 'Un contador detallado para celebrar la historia compartida.', 1, 5],
+        ['sorpresa-cumple', 'Sorpresa de cumpleaños', 'cumpleanos', 'sorpresa-cumple.html', 'Una sorpresa interactiva para celebrar un cumpleaños.', 1, 5],
+        ['quieres-ser-mi-novia', '¿Quieres ser mi novia?', 'declaracion', 'quieres-ser-mi-novia.html', 'Una propuesta romántica e interactiva.', 1, 5],
+    ];
+    $st = $pdo->prepare('INSERT IGNORE INTO templates (slug, name, kind, category, file, description, is_premium, price_coins, is_active) VALUES (?, ?, \'html\', ?, ?, ?, ?, ?, 1)');
+    foreach ($templates as $template) {
+        $st->execute($template);
+    }
+}
+
+/** v21: acceso con Google (OAuth 2.0). Identificador de Google, foto, verificación del correo,
+ *  último acceso y la marca de si la cuenta tiene contraseña propia (las de Google no). */
+function db_migrate_v21(PDO $pdo): void
+{
+    $cols = [
+        // El `sub` de Google identifica la cuenta; el correo puede cambiar en Google.
+        'google_id'         => 'VARCHAR(128) NULL',
+        'avatar_url'        => 'VARCHAR(512) NULL',
+        'email_verified_at' => 'DATETIME NULL',
+        'last_login_at'     => 'DATETIME NULL',
+        'has_password'      => 'TINYINT(1)   NOT NULL DEFAULT 1',
+    ];
+    foreach ($cols as $col => $def) {
+        if (!db_column_exists($pdo, 'users', $col)) {
+            $pdo->exec("ALTER TABLE users ADD COLUMN `$col` $def");
+        }
+    }
+    // Una misma cuenta de Google no puede vincularse a dos usuarios distintos.
+    $hasIdx = static function (string $name) use ($pdo): bool {
+        $st = $pdo->prepare('SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?');
+        $st->execute(['users', $name]);
+        return (int) $st->fetchColumn() > 0;
+    };
+    if (!$hasIdx('uq_users_google_id')) {
+        $pdo->exec('ALTER TABLE users ADD UNIQUE KEY uq_users_google_id (google_id)');
+    }
+    $st = $pdo->prepare("SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE()
+                          AND TABLE_NAME = 'users' AND CONSTRAINT_TYPE = 'CHECK' AND CONSTRAINT_NAME = 'chk_users_has_password'");
+    $st->execute();
+    if ((int) $st->fetchColumn() === 0) {
+        $pdo->exec('ALTER TABLE users ADD CONSTRAINT chk_users_has_password CHECK (has_password IN (0, 1))');
+    }
+}
+
+/**
+ * v22: códigos de verificación de correo. Las cuentas anteriores (que nunca pasaron por verificación) se dan por
+ * verificadas para no dejar a nadie fuera al activar el SMTP.
+ */
+function db_migrate_v22(PDO $pdo): void
+{
+    $pdo->exec("CREATE TABLE IF NOT EXISTS email_verifications (
+        user_id      INT      NOT NULL PRIMARY KEY,
+        code_hash    CHAR(64) NOT NULL,
+        salt         CHAR(16) NOT NULL,
+        attempts     INT      NOT NULL DEFAULT 0,
+        expires_at   DATETIME NOT NULL,
+        last_sent_at DATETIME NOT NULL,
+        CONSTRAINT fk_emailver_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $pdo->exec('UPDATE users SET email_verified_at = created_at WHERE email_verified_at IS NULL');
+}
+
+/**
+ * v23: recuerda que el usuario rechazó el alias en /auth/google_alias.php.
+ *
+ * Sin esta marca, una cuenta de Google sin alias vería el prompt en cada inicio de sesión. NULL
+ * significa «nunca se le preguntó» (o sí, y no ha respondido) y es el estado por defecto de las
+ * cuentas nuevas, incluidas las que se crean antes de esta migración: la pregunta se hace igual,
+ * una sola vez.
+ */
+function db_migrate_v23(PDO $pdo): void
+{
+    if (!db_column_exists($pdo, 'users', 'alias_dismissed_at')) {
+        $pdo->exec('ALTER TABLE users ADD COLUMN `alias_dismissed_at` DATETIME NULL');
+    }
+}
+
 /** ¿Existe la columna en la base actual? (para ALTER TABLE idempotentes) */
 function db_column_exists(PDO $pdo, string $table, string $column): bool
 {
@@ -649,7 +888,9 @@ function db_column_exists(PDO $pdo, string $table, string $column): bool
  */
 function db_split_sql(string $sql): array
 {
-    $sql = (string) preg_replace('/--[^\n]*/', '', $sql);
+    // Quitar comentarios completos e inline, conservando los saltos de línea para que
+    // las sentencias SQL no se unan ni cambien el contexto de los comentarios.
+    $sql = (string) preg_replace('/--[^\r\n]*/', '', $sql);
     return array_values(array_filter(
         array_map('trim', explode(';', $sql)),
         static fn(string $s): bool => $s !== ''

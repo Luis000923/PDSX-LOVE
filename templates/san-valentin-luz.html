@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'nonce-{{{nonce}}}' https://cdn.tailwindcss.com">
+<title>San Valent&iacute;n para {{partner_name}}</title>
+<link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+<script nonce="{{{nonce}}}" src="https://cdn.tailwindcss.com"></script>
+<style>html,body{overflow-x:hidden}body{font-family:'Outfit',sans-serif;background:#240b16;background-image:radial-gradient(#fb7185 1px,transparent 1px);background-size:32px 32px}.script{font-family:'Great Vibes',cursive}.lantern{animation:glow 2.5s ease-in-out infinite}@keyframes glow{50%{filter:drop-shadow(0 0 18px #fbbf24);transform:scale(1.04)}}@media(prefers-reduced-motion:reduce){.lantern{animation:none}}</style>
+</head>
+<body class="min-h-screen px-4 py-12 text-rose-50">
+<main class="mx-auto w-full max-w-md text-center">
+  <div class="lantern text-6xl text-amber-300" aria-hidden="true">&#9829;</div>
+  <p class="mt-6 text-xs font-bold uppercase tracking-[.3em] text-rose-300">Para mi persona favorita</p>
+  <h1 class="script mt-3 text-[clamp(3.2rem,16vw,5.5rem)] leading-none text-amber-200 break-words">{{partner_name}}</h1>
+  <p class="mt-4 text-lg text-rose-100">Feliz San Valent&iacute;n, con amor de {{your_name}}</p>
+  <section class="mt-8 rounded-[2rem] border border-rose-200/20 bg-white/10 p-7 text-left backdrop-blur break-words [overflow-wrap:anywhere]"><p class="whitespace-pre-line leading-relaxed">{{message}}</p><p class="mt-6 text-right font-semibold text-amber-200">Siempre tuyo/a, {{your_name}}</p></section>
+  {{{ad_slot}}}
+</main>
+</body>
+</html>

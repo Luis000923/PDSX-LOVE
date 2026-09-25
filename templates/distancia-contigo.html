@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'nonce-{{{nonce}}}' https://cdn.tailwindcss.com">
+<title>A pesar de la distancia | {{partner_name}}</title>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Manrope:wght@400;600;700&display=swap" rel="stylesheet">
+<script nonce="{{{nonce}}}" src="https://cdn.tailwindcss.com"></script>
+<style>html,body{overflow-x:hidden}body{font-family:'Manrope',sans-serif;background:#e9f5f8}.serif{font-family:'Libre Baskerville',serif}.plane{animation:fly 7s ease-in-out infinite}@keyframes fly{50%{transform:translate(12px,-8px)}}@media(prefers-reduced-motion:reduce){.plane{animation:none}}</style>
+</head>
+<body class="min-h-screen px-4 py-12 text-slate-800">
+<main class="mx-auto w-full max-w-md">
+  <div class="relative h-32 overflow-hidden rounded-3xl bg-gradient-to-br from-sky-500 to-indigo-700"><div class="plane absolute right-8 top-8 text-5xl text-white" aria-hidden="true">✈</div><div class="absolute bottom-5 left-6 text-3xl text-white/80">·  ·  ·  ·  ·</div></div>
+  <p class="mt-8 text-center text-sm font-bold uppercase tracking-[.24em] text-sky-700">Aunque estés lejos</p>
+  <h1 class="serif mt-3 text-center text-[clamp(2rem,9vw,3rem)] leading-tight break-words">Te llevo conmigo, {{partner_name}}</h1>
+  <p class="mt-4 text-center text-slate-600">De {{your_name}}, con un pedacito de hogar.</p>
+  <section class="mt-7 rounded-3xl bg-white p-6 text-left shadow-lg break-words [overflow-wrap:anywhere]"><p class="whitespace-pre-line leading-relaxed">{{message}}</p><p class="mt-6 text-right font-bold text-sky-700">Hasta el próximo abrazo, {{your_name}}</p></section>
+  {{{ad_slot}}}
+</main>
+</body>
+</html>

@@ -56,7 +56,7 @@ final class Admin
         if (!$user) {
             redirect('login.php');
         }
-        if ((int) ($user['is_admin'] ?? 0) !== 1) {
+        if (!self::isAdminInDb((int) $user['id'])) {
             self::log('denied', 'acceso a ' . ($_SERVER['REQUEST_URI'] ?? ''));
             http_response_code(403);
             header('Content-Type: text/plain; charset=utf-8');
@@ -64,6 +64,17 @@ final class Admin
         }
         header('Cache-Control: private, no-store');
         return $user;
+    }
+
+    /**
+     * Rol verificado en la BD con una consulta propia: no depende de lo que haya cargado la sesión
+     * ni de ningún valor del cliente. Una cuenta suspendida tampoco es administradora.
+     */
+    public static function isAdminInDb(int $userId): bool
+    {
+        $st = db()->prepare('SELECT 1 FROM users WHERE id = ? AND is_admin = 1 AND is_suspended = 0');
+        $st->execute([$userId]);
+        return $st->fetchColumn() !== false;
     }
 
     /** Registra una acción administrativa. Nunca lanza: la auditoría no debe tumbar la petición. */
