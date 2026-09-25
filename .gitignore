@@ -12,6 +12,7 @@ composer.phar
 
 # Base de datos local y respaldos
 database/*.sqlite*
+**/*.sqlite*
 *.sql.gz
 *.sql.bak
 

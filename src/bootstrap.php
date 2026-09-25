@@ -30,7 +30,8 @@ function env(string $key, ?string $default = null): ?string
     return ($real !== false && $real !== '') ? $real : ($vars[$key] ?? $default);
 }
 
-$debug = env('APP_DEBUG', '0') === '1';
+// Nunca mostrar errores si la URL es https (producción), aunque APP_DEBUG venga mal puesto.
+$debug = env('APP_DEBUG', '0') === '1' && !str_starts_with((string) env('APP_URL', ''), 'https://');
 error_reporting(E_ALL);
 ini_set('display_errors', $debug ? '1' : '0');
 ini_set('log_errors', '1');
@@ -83,7 +84,16 @@ function csp_nonce(): string
 
 function client_ip(): string
 {
-    return $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    // Detrás de un proxy/CDN: X-Forwarded-For solo se acepta si la conexión viene de un proxy listado en TRUSTED_PROXIES.
+    $trusted = array_filter(array_map('trim', explode(',', (string) env('TRUSTED_PROXIES', ''))));
+    if ($trusted && in_array($ip, $trusted, true) && isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+        $fwd = trim(explode(',', (string) $_SERVER['HTTP_X_FORWARDED_FOR'])[0]);
+        if (filter_var($fwd, FILTER_VALIDATE_IP) !== false) {
+            return $fwd;
+        }
+    }
+    return $ip;
 }
 
 // ---------- Cabeceras y sesión ----------
@@ -103,7 +113,7 @@ if (!defined('NO_SESSION')) {
 
     $secure = str_starts_with((string) env('APP_URL'), 'https://');
     if ($secure) {
-        header('Strict-Transport-Security: max-age=31536000');
+        header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
     }
     ini_set('session.use_strict_mode', '1');
     ini_set('session.use_only_cookies', '1');
