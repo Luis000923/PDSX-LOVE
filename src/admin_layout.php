@@ -31,6 +31,7 @@ function admin_nav_items(): array
         'Sistema'   => [
             'settings' => ['admin/settings.php', 'Ajustes', 'settings'],
             'activity' => ['admin/activity.php', 'Actividad', 'activity'],
+            'purge'    => ['admin/purge.php', 'Limpieza total', 'settings'],
         ],
     ];
 }

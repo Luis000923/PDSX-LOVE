@@ -18,8 +18,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $note   = trim((string) ($_POST['note'] ?? ''));
     $back   = 'admin/payments.php' . (preg_match('/^[A-Za-z0-9=&_%.:+\-]{1,300}$/', (string) ($_POST['back'] ?? '')) ? '?' . $_POST['back'] : '');
 
-    if (!in_array($action, ['approve', 'void'], true) || $pid <= 0) {
+    if (!in_array($action, ['approve', 'void', 'delete'], true) || $pid <= 0) {
         flash('Acción inválida.');
+        redirect($back);
+    }
+    if ($action === 'delete') {
+        try {
+            AdminUsers::deletePayment($pid, (string) ($_POST['confirm_ref'] ?? ''), $note, (int) $admin['id']);
+            flash("Registro del pago #$pid eliminado.");
+        } catch (InvalidArgumentException $e) {
+            flash($e->getMessage());
+        }
         redirect($back);
     }
     if ($action === 'approve' && empty($_POST['confirm'])) {
@@ -167,6 +176,14 @@ $manageCell = static function (array $r, string $back) use ($concept): string {
             . '<input id="n-v' . (int) $r['id'] . '" name="note" required maxlength="255" class="' . ADMIN_INPUT_CLS . '">'
             . '<button name="action" value="void" class="' . ADMIN_BTN_DANGER_CLS . '">Anular</button></form>';
     }
+    // Eliminar el registro (cualquier estado). No revierte lo ya aplicado: para eso está «Anular».
+    $out .= '<form method="post" class="mt-2 space-y-2 border border-rose-200 rounded-lg p-3">'
+        . csrf_field() . '<input type="hidden" name="id" value="' . (int) $r['id'] . '"><input type="hidden" name="back" value="' . e($back) . '">'
+        . '<p class="text-xs font-semibold text-rose-800">Eliminar registro (irreversible)</p>'
+        . '<p class="text-xs text-slate-600">No revierte plan, monedas ni plantilla ya activados. Escribe la referencia <span class="font-mono">' . e((string) $r['reference']) . '</span> para confirmar.</p>'
+        . '<input name="confirm_ref" required autocomplete="off" maxlength="60" aria-label="Referencia del pago" class="' . ADMIN_INPUT_CLS . ' font-mono">'
+        . '<input name="note" required maxlength="200" placeholder="Motivo" aria-label="Motivo" class="' . ADMIN_INPUT_CLS . '">'
+        . '<button name="action" value="delete" class="' . ADMIN_BTN_DANGER_CLS . '">Eliminar registro</button></form>';
     return $out . '</details>';
 };
 ?>

@@ -282,6 +282,118 @@ final class AdminUsers
         self::audit($adminId, 'user.delete', sprintf('user:%d eliminada (%s), %d páginas, %d monedas — %s', $userId, $u['email'], $sites, (int) $u['coins'], $reason));
     }
 
+    // ------------------------------------------------ compras y limpieza ---
+
+    /**
+     * Elimina UN registro de compra (cualquier estado). Exige escribir su referencia. NO revierte lo ya aplicado
+     * (plan, monedas, plantilla): para eso está «Anular». Devuelve el cupón canjeado con ese pago (si lo hubo).
+     */
+    public static function deletePayment(int $paymentId, string $confirmRef, string $reason, int $adminId): void
+    {
+        $reason = self::reason($reason);
+        $pdo = db();
+        $pdo->beginTransaction();
+        try {
+            $st = $pdo->prepare('SELECT id, user_id, reference, status, amount_in_cents, fulfilled_at FROM payments WHERE id = ? FOR UPDATE');
+            $st->execute([$paymentId]);
+            $p = $st->fetch();
+            if (!$p) {
+                throw new InvalidArgumentException('Ese pago no existe.');
+            }
+            if (!hash_equals((string) $p['reference'], trim($confirmRef))) {
+                throw new InvalidArgumentException('La referencia escrita no coincide con la del pago.');
+            }
+            // Si el pago canjeó un cupón, se libera el uso (el usuario podrá volver a usarlo y el contador cuadra).
+            $red = $pdo->prepare('SELECT id, promo_id FROM promo_redemptions WHERE payment_id = ? FOR UPDATE');
+            $red->execute([$paymentId]);
+            foreach ($red->fetchAll() as $r) {
+                $pdo->prepare('DELETE FROM promo_redemptions WHERE id = ?')->execute([(int) $r['id']]);
+                $pdo->prepare('UPDATE promos SET uses = GREATEST(0, uses - 1) WHERE id = ?')->execute([(int) $r['promo_id']]);
+            }
+            $pdo->prepare('DELETE FROM payments WHERE id = ?')->execute([$paymentId]);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
+        self::audit($adminId, 'payment.delete', sprintf('user:%d pago #%d eliminado (%s, %s, %d centavos%s) — %s', (int) $p['user_id'], $paymentId,
+            $p['reference'], $p['status'], (int) $p['amount_in_cents'], $p['fulfilled_at'] !== null ? ', ya aplicado: no se revirtió' : '', $reason));
+    }
+
+    /** Frase exacta que hay que escribir para la limpieza total. */
+    public const PURGE_PHRASE = 'ELIMINAR TODO';
+
+    /** @return array{users:int, payments:int, sites:int, coins:int} lo que borraría la limpieza total */
+    public static function purgePreview(): array
+    {
+        $pdo = db();
+        return [
+            'users'    => (int) $pdo->query('SELECT COUNT(*) FROM users WHERE is_admin = 0')->fetchColumn(),
+            'payments' => (int) $pdo->query('SELECT COUNT(*) FROM payments')->fetchColumn(),
+            'sites'    => (int) $pdo->query('SELECT COUNT(*) FROM user_sites s JOIN users u ON u.id = s.user_id WHERE u.is_admin = 0')->fetchColumn(),
+            'coins'    => (int) $pdo->query('SELECT COALESCE(SUM(coins), 0) FROM users WHERE is_admin = 0')->fetchColumn(),
+        ];
+    }
+
+    /**
+     * LIMPIEZA TOTAL: elimina a TODOS los usuarios que no son administradores (con sus páginas, monedas, creaciones,
+     * canjes de cupón y pagos), TODOS los registros de compra (también los de administradores) y las ganancias por
+     * plantillas. Se conservan administradores, catálogo de plantillas, planes, cupones (con el contador de usos
+     * recalculado), ajustes y el registro de auditoría. Exige la frase exacta y la contraseña del administrador
+     * (o su correo si su cuenta entra solo con Google). Irreversible.
+     *
+     * @return array{users:int, payments:int, sites:int}
+     */
+    public static function purgeAll(string $phrase, string $secret, string $reason, int $adminId): array
+    {
+        $reason = self::reason($reason);
+        if (!hash_equals(self::PURGE_PHRASE, trim($phrase))) {
+            throw new InvalidArgumentException('Escribe exactamente «' . self::PURGE_PHRASE . '» para confirmar.');
+        }
+        $pdo = db();
+        $st = $pdo->prepare('SELECT email, password_hash, has_password, is_admin FROM users WHERE id = ?');
+        $st->execute([$adminId]);
+        $a = $st->fetch();
+        if (!$a || (int) $a['is_admin'] !== 1) {
+            throw new InvalidArgumentException('Solo un administrador puede hacerlo.');
+        }
+        $okSecret = (int) $a['has_password'] === 1
+            ? password_verify($secret, (string) $a['password_hash'])
+            : hash_equals(strtolower((string) $a['email']), strtolower(trim($secret)));   // cuenta solo-Google: se confirma con su correo
+        if (!$okSecret) {
+            self::audit($adminId, 'purge.denied', 'limpieza total rechazada: credencial de confirmación incorrecta');
+            throw new InvalidArgumentException(((int) $a['has_password'] === 1) ? 'La contraseña no es correcta.' : 'El correo escrito no coincide con el de tu cuenta.');
+        }
+
+        $before = self::purgePreview();
+        $slugs = $pdo->query('SELECT s.slug FROM user_sites s JOIN users u ON u.id = s.user_id WHERE u.is_admin = 0')->fetchAll(PDO::FETCH_COLUMN);
+        $pdo->beginTransaction();
+        try {
+            // Sus plantillas públicas salen del catálogo (las de administradores no se tocan).
+            $pdo->exec("UPDATE templates t JOIN users u ON u.id = t.owner_user_id SET t.review_status = 'withdrawn', t.is_active = 0
+                         WHERE u.is_admin = 0 AND t.kind = 'utpl' AND t.review_status IN ('approved', 'pending')");
+            $pdo->exec('DELETE FROM users WHERE is_admin = 0');          // FK en cascada: páginas, monedas, canjes, pagos, insignias…
+            $pdo->exec('DELETE FROM payments');                          // también los de administradores
+            $pdo->exec('DELETE FROM promo_redemptions');
+            $pdo->exec('UPDATE promos SET uses = 0');
+            $pdo->exec('DELETE FROM template_earnings');
+            $pdo->exec('DELETE FROM login_attempts');
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
+        foreach ($slugs as $sl) {   // fotos y HTML propio (tras confirmar la transacción)
+            Sites::purgeFiles((string) $sl);
+        }
+        self::audit($adminId, 'purge.all', sprintf('LIMPIEZA TOTAL: %d usuarios, %d compras, %d páginas, %d monedas — %s', $before['users'], $before['payments'], $before['sites'], $before['coins'], $reason));
+        return ['users' => $before['users'], 'payments' => $before['payments'], 'sites' => $before['sites']];
+    }
+
     // ---------------------------------------------------------- páginas ---
 
     /** @return array{rows:list<array<string,mixed>>, total:int, page:int, pages:int} */
