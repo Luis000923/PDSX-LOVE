@@ -135,6 +135,14 @@ HTML;
 function page_end(): void
 {
     echo payment_wait_overlay();
+    // Celebración de compra: solo si la BD tiene un pago APPROVED y aplicado, reciente y aún no celebrado (nada que el cliente controle).
+    try {
+        if (($u = current_user()) !== null) {
+            echo PurchaseNotice::celebration(db(), (int) $u['id']);
+        }
+    } catch (Throwable $e) {
+        error_log('celebración: ' . $e->getMessage());
+    }
     echo '</main><footer class="mx-auto max-w-5xl px-5 py-8 text-center text-xs text-slate-500">'
        . '<a class="hover:text-rose-700 hover:underline" href="' . e(url('terms.php')) . '">Términos y condiciones</a>'
        . '<span class="mx-2 text-slate-300" aria-hidden="true">·</span>'

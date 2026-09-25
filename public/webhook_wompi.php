@@ -151,4 +151,5 @@ try {
     respond(500, 'error');   // Wompi reintentará
 }
 
+PurchaseNotice::email($pdo, (int) $pay['id']);   // ya aplicado: correo de confirmación (una sola vez por pago)
 respond(200, 'ok');

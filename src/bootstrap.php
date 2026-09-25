@@ -48,6 +48,7 @@ require_once ROOT . '/src/Creators.php';
 require_once ROOT . '/src/Sites.php';
 require_once ROOT . '/src/AdminUsers.php';
 require_once ROOT . '/src/Payments.php';
+require_once ROOT . '/src/PurchaseNotice.php';
 require_once ROOT . '/src/Referrals.php';
 require_once ROOT . '/src/Registration.php';
 require_once ROOT . '/src/Mailer.php';

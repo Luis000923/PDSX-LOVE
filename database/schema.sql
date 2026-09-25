@@ -148,6 +148,8 @@ CREATE TABLE IF NOT EXISTS payments (
     approved_by           INT          NULL,            -- admin que aprobó manualmente
     admin_note            VARCHAR(255) NULL,            -- motivo de la aprobación/anulación manual
     fulfilled_at          DATETIME     NULL,            -- cuándo se aplicó el efecto (plan/monedas/plantilla); NULL = aún no
+    celebrated_at         DATETIME     NULL,            -- cuándo se mostró la animación de compra exitosa (una sola vez)
+    notified_at           DATETIME     NULL,            -- cuándo se envió el correo de confirmación a soporte y al comprador
     created_at            DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at            DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uq_payments_reference (reference),

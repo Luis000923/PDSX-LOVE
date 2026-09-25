@@ -11,7 +11,7 @@ declare(strict_types=1);
  */
 
 /** Versión de esquema esperada por el código (tabla `schema_version`). */
-const DB_SCHEMA_VERSION = 23;
+const DB_SCHEMA_VERSION = 24;
 
 /** Nombre del bloqueo consultivo que serializa las migraciones entre procesos. */
 const DB_MIGRATION_LOCK = 'lovepages_schema_migration';
@@ -127,6 +127,7 @@ function db_migrate(PDO $pdo): void
         db_migrate_v21($pdo);   // Google OAuth: google_id, avatar_url, email_verified_at, last_login_at, has_password
         db_migrate_v22($pdo);   // verificación de correo por código
         db_migrate_v23($pdo);   // el usuario rechazó el prompt de alias: no volver a preguntar
+        db_migrate_v24($pdo);   // payments.celebrated_at / notified_at: animación de compra exitosa y correo a soporte
 
         $pdo->exec('CREATE TABLE IF NOT EXISTS schema_version (
             version    INT      NOT NULL PRIMARY KEY,
@@ -867,6 +868,20 @@ function db_migrate_v23(PDO $pdo): void
 {
     if (!db_column_exists($pdo, 'users', 'alias_dismissed_at')) {
         $pdo->exec('ALTER TABLE users ADD COLUMN `alias_dismissed_at` DATETIME NULL');
+    }
+}
+
+/**
+ * v24: marcas de «ya celebrada» (animación) y «ya notificada» (correo a soporte y al comprador). Los pagos que ya
+ * estaban aplicados se marcan como hechos para no celebrarlos ni enviar correos con retraso.
+ */
+function db_migrate_v24(PDO $pdo): void
+{
+    foreach (['celebrated_at', 'notified_at'] as $col) {
+        if (!db_column_exists($pdo, 'payments', $col)) {
+            $pdo->exec("ALTER TABLE payments ADD COLUMN `$col` DATETIME NULL");
+            $pdo->exec("UPDATE payments SET `$col` = fulfilled_at WHERE fulfilled_at IS NOT NULL");
+        }
     }
 }
 

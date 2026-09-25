@@ -114,6 +114,7 @@ final class Payments
             return 'error';
         }
         error_log("Wompi verificación {$pay['reference']}: aprobado y aplicado por consulta a la API");
+        PurchaseNotice::email($pdo, (int) $pay['id']);   // ya confirmado y aplicado: correo a soporte y al comprador
         return 'approved';
     }
 
@@ -139,7 +140,11 @@ final class Payments
     /** Al volver de Wompi: confirma los pagos pendientes del usuario y, si alguno se aprobó, recarga la página con el estado nuevo. */
     public static function reconcileAndReload(PDO $pdo, int $userId): void
     {
-        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET' || self::reconcilePending($pdo, $userId) === 0) {
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
+            return;
+        }
+        PurchaseNotice::retryEmails($pdo, $userId);   // correos que no salieron la vez anterior (SMTP caído)
+        if (self::reconcilePending($pdo, $userId) === 0) {
             return;
         }
         $qs = (string) ($_SERVER['QUERY_STRING'] ?? '');
