@@ -3,7 +3,7 @@ declare(strict_types=1);
 require __DIR__ . '/../src/bootstrap.php';
 
 if (current_user()) {
-    redirect('dashboard.php');
+    redirect('index.php');
 }
 
 $error = null;
@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     EmailVerification::issue($created['id']);   // si el envío falla, la pantalla del código permite reenviar
                     redirect('verify_email.php' . auth_next_qs());
                 }
-                redirect(auth_next('create.php'));
+                redirect(auth_next('index.php'));
             }
         } catch (PDOException $ex) {
             error_log($ex->getMessage());

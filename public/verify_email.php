@@ -7,7 +7,7 @@ if (!$user) {
     redirect('login.php');
 }
 if (EmailVerification::isVerified($user)) {
-    redirect(auth_next('create.php'));
+    redirect(auth_next('index.php'));
 }
 
 $uid = (int) $user['id'];
@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $r = EmailVerification::verify($uid, (string) ($_POST['code'] ?? ''));
         if ($r['ok']) {
             flash('¡Correo verificado! Bienvenida/o a LovePages.');
-            redirect(auth_next('create.php'));
+            redirect(auth_next('index.php'));
         }
         $error = $r['error'];
     }

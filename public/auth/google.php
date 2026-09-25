@@ -9,7 +9,7 @@ require __DIR__ . '/../../src/bootstrap.php';
  */
 
 if (current_user()) {
-    redirect('dashboard.php');   // ya hay sesión: no hace falta volver a autorizar la misma cuenta
+    redirect('index.php');   // ya hay sesión: no hace falta volver a autorizar la misma cuenta
 }
 
 $unavailable = 'El acceso con Google no está disponible ahora mismo. Puedes entrar con tu correo y contraseña.';

@@ -23,7 +23,7 @@ $user = require_login();
 $uid  = (int) $user['id'];
 
 // `?next=` solo admite la lista blanca de auth_next_value(): premium|code. No hay open redirect.
-$target = auth_next_path(auth_next_value(), 'create.php');
+$target = auth_next_path(auth_next_value(), 'index.php');
 
 // display_name no viene en current_user() (ver bootstrap.php:160), así que se lee.
 $st = db()->prepare('SELECT display_name FROM users WHERE id = ?');
