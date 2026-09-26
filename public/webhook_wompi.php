@@ -72,6 +72,24 @@ if (strlen($raw) > WEBHOOK_MAX_BYTES) {
 
 // 1) Autenticidad sobre el cuerpo tal cual llegó (sin decodificar ni reformatear).
 if (!WompiClient::verifyWebhook($raw, wompi_hash_header(), wompi_config()['api_secret'])) {
+    // Si la cabecera wompi_hash no llega (el CDN/servidor puede descartar cabeceras con "_"), el aviso no se
+    // acepta por sí mismo: solo sirve de pista. El pago se confirma preguntando a Wompi por su API con nuestras
+    // credenciales, así que un aviso falso no puede aprobar nada.
+    $hint = json_decode($raw, true);
+    $ref = is_array($hint) && is_array($hint['EnlacePago'] ?? null) ? ($hint['EnlacePago']['IdentificadorEnlaceComercio'] ?? null) : null;
+    if (is_string($ref) && preg_match('/^LP-[0-9]+-[a-f0-9]{16}$/', $ref) === 1) {
+        $GLOBALS['wlog']['ref'] = $ref;
+        $row = db()->prepare("SELECT id, reference, amount_in_cents, link_id FROM payments WHERE reference = ? AND status = 'PENDING'");
+        $row->execute([$ref]);
+        $pay = $row->fetch();
+        if ($pay && Payments::claim(db(), (int) $pay['id'])) {
+            $out = Payments::reconcile(db(), $pay);
+            error_log("Wompi webhook sin firma verificable: verificación por API de $ref = $out");
+            if ($out === 'approved') {
+                respond(200, 'verified');
+            }
+        }
+    }
     error_log('Wompi webhook: firma inválida (' . (wompi_hash_header() === '' ? 'cabecera wompi_hash ausente' : 'HMAC no coincide: revisa WOMPI_API_SECRET') . ')');
     respond(401, 'invalid signature');
 }

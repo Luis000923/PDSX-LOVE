@@ -99,9 +99,6 @@ if (!wompi_configured()) {
     redirect($backPath);
 }
 
-// Limpia las solicitudes que nunca se pagaron (antes de contar las abiertas).
-Payments::purgeExpiredPending($pdo);
-
 // Freno a abusos: cada intento llama a una API externa y deja una fila.
 $st = $pdo->prepare("SELECT COUNT(*) FROM payments WHERE user_id = ? AND status = 'PENDING' AND created_at > UTC_TIMESTAMP() - INTERVAL 1 HOUR");
 $st->execute([$user['id']]);
