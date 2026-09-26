@@ -1,5 +1,8 @@
 Options -Indexes
 RewriteEngine On
+# Wompi firma el webhook con la cabecera `wompi_hash`; Apache/LiteSpeed descartan las cabeceras con "_", así que se reexpone.
+RewriteCond %{HTTP:wompi_hash} (.+)
+RewriteRule ^webhook_wompi\.php$ - [E=HTTP_WOMPI_HASH:%1]
 # Página pública de pareja: /c/abc12345
 RewriteRule ^c/([a-z0-9]{6,12})/?$ view.php?u=$1 [L,QSA]
 # Documento aislado (HTML propio del usuario), servido por frame.php con CSP `sandbox`

@@ -4,7 +4,6 @@ require __DIR__ . '/../src/bootstrap.php';
 
 $user = require_login();
 $pdo  = db();
-Payments::reconcileAndReload($pdo, (int) $user['id']);
 $templates = $pdo->query('SELECT id, slug, name, description, thumbnail, kind, category, is_premium, price_usd, price_coins, membership_unlocks, image_spec, credit_alias FROM templates t WHERE ' . Creators::PUBLIC_WHERE . ' ORDER BY is_premium, price_usd, id')->fetchAll();
 $owned = Access::purchasedTemplateIds((int) $user['id']);
 $isLocked = static fn(array $t): bool => !Access::canUse($user, $t, $owned);

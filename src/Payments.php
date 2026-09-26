@@ -68,99 +68,6 @@ final class Payments
         }
     }
 
-    /**
-     * Confirma un pago PENDING preguntando a Wompi (GET /EnlacePago/{link_id}) y, si está aprobado con el
-     * monto exacto, lo marca APPROVED y aplica su efecto (idempotente). No depende del webhook.
-     * Devuelve: approved | pending | mismatch | ignored | skip | error.
-     *
-     * @param array{id:int|string, reference:string, amount_in_cents:int|string, link_id:int|string|null} $pay
-     */
-    public static function reconcile(PDO $pdo, array $pay, ?WompiClient $client = null): string
-    {
-        $linkId = (int) ($pay['link_id'] ?? 0);
-        if ($linkId <= 0 || ($client === null && !wompi_configured())) {
-            return 'skip';
-        }
-        try {
-            $st = ($client ?? WompiClient::fromEnv())->getPaymentLink($linkId);
-        } catch (WompiException $e) {
-            error_log('Wompi verificación ' . $pay['reference'] . ': ' . $e->getMessage());
-            return 'error';
-        }
-        $r = WompiClient::parseLinkStatus($st);
-        if (!$r['approved']) {
-            error_log("Wompi verificación {$pay['reference']}: Wompi aún no la da por aprobada " . WompiClient::describeLink($st));
-            return 'pending';
-        }
-        if ($r['amount_cents'] === null || $r['amount_cents'] !== (int) $pay['amount_in_cents']) {
-            error_log("Wompi verificación {$pay['reference']}: monto no coincide (esperado {$pay['amount_in_cents']}, Wompi " . var_export($r['amount_cents'], true) . ')');
-            return 'mismatch';
-        }
-        if (wompi_config()['env'] === 'production' && !$r['productive']) {
-            error_log("Wompi verificación {$pay['reference']}: transacción no productiva rechazada en producción");
-            return 'ignored';
-        }
-        $pdo->beginTransaction();
-        try {
-            $pdo->prepare("UPDATE payments SET status = 'APPROVED', wompi_transaction_id = ?, updated_at = UTC_TIMESTAMP()
-                            WHERE id = ? AND status = 'PENDING'")
-                ->execute([$r['transaction_id'] !== '' ? $r['transaction_id'] : null, (int) $pay['id']]);
-            self::fulfill($pdo, (int) $pay['id'], 'wompi-api');
-            $pdo->commit();
-        } catch (Throwable $e) {
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
-            error_log('Wompi verificación ' . $pay['reference'] . ': ' . $e->getMessage());
-            return 'error';
-        }
-        error_log("Wompi verificación {$pay['reference']}: aprobado y aplicado por consulta a la API");
-        PurchaseNotice::email($pdo, (int) $pay['id']);   // ya confirmado y aplicado: correo a soporte y al comprador
-        return 'approved';
-    }
-
-    /**
-     * Reclama (atómico, 15 s de enfriamiento por pago) y reconcilia los pagos PENDING recientes de un usuario.
-     * Se llama al volver de Wompi (tienda, crear, panel) y desde el webhook. Devuelve cuántos se aprobaron.
-     */
-    public static function reconcilePending(PDO $pdo, int $userId, ?WompiClient $client = null): int
-    {
-        $st = $pdo->prepare("SELECT id, reference, amount_in_cents, link_id FROM payments
-                              WHERE user_id = ? AND status = 'PENDING' AND link_id IS NOT NULL
-                                AND created_at > UTC_TIMESTAMP() - INTERVAL 6 HOUR ORDER BY id DESC LIMIT 3");
-        $st->execute([$userId]);
-        $n = 0;
-        foreach ($st->fetchAll() as $pay) {
-            if (self::claim($pdo, (int) $pay['id']) && self::reconcile($pdo, $pay, $client) === 'approved') {
-                $n++;
-            }
-        }
-        return $n;
-    }
-
-    /** Al volver de Wompi: confirma los pagos pendientes del usuario y, si alguno se aprobó, recarga la página con el estado nuevo. */
-    public static function reconcileAndReload(PDO $pdo, int $userId): void
-    {
-        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
-            return;
-        }
-        PurchaseNotice::retryEmails($pdo, $userId);   // correos que no salieron la vez anterior (SMTP caído)
-        if (self::reconcilePending($pdo, $userId) === 0) {
-            return;
-        }
-        $qs = (string) ($_SERVER['QUERY_STRING'] ?? '');
-        redirect(basename((string) ($_SERVER['SCRIPT_NAME'] ?? 'index.php')) . ($qs !== '' ? '?' . $qs : ''));
-    }
-
-    /** Reserva la verificación de un pago: solo una petición cada 15 s (evita ráfagas hacia la API de Wompi). */
-    public static function claim(PDO $pdo, int $paymentId): bool
-    {
-        $st = $pdo->prepare("UPDATE payments SET updated_at = UTC_TIMESTAMP()
-                              WHERE id = ? AND status = 'PENDING' AND updated_at < UTC_TIMESTAMP() - INTERVAL 15 SECOND");
-        $st->execute([$paymentId]);
-        return $st->rowCount() === 1;
-    }
-
     /** @param array<string,mixed> $pay */
     public static function kind(array $pay): string
     {
@@ -374,5 +281,28 @@ final class Payments
             error_log('Payments::redeemFree: ' . $e->getMessage());
             return $fail('No pudimos aplicar el cupón. Inténtalo de nuevo.');
         }
+    }
+
+    /** Minutos que un pago WOMPI puede quedar PENDING antes de borrarse (PAYMENT_PENDING_TTL_MINUTES, mín. 15, por defecto 60). */
+    public static function pendingTtlMinutes(): int
+    {
+        return max(15, (int) (env('PAYMENT_PENDING_TTL_MINUTES', '60') ?: 60));
+    }
+
+    /**
+     * Borra las solicitudes de pago que nunca se pagaron: método WOMPI, PENDING, sin efecto aplicado
+     * y más viejas que el TTL. Si Wompi llegara a notificar después una referencia borrada, el webhook
+     * responde 404 y el admin puede aprobarlo a mano desde el pago del proveedor.
+     *
+     * @return int filas eliminadas
+     */
+    public static function purgeExpiredPending(PDO $pdo, ?int $ttlMinutes = null): int
+    {
+        $ttl = max(1, $ttlMinutes ?? self::pendingTtlMinutes());
+        $st = $pdo->prepare("DELETE FROM payments
+                              WHERE method = 'WOMPI' AND status = 'PENDING' AND fulfilled_at IS NULL
+                                AND created_at < UTC_TIMESTAMP() - INTERVAL ? MINUTE");
+        $st->execute([$ttl]);
+        return $st->rowCount();
     }
 }

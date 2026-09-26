@@ -4,7 +4,6 @@ require __DIR__ . '/../src/bootstrap.php';
 
 $user = require_login();
 $pdo  = db();
-Payments::reconcileAndReload($pdo, (int) $user['id']);   // pago hecho pero webhook sin llegar: se confirma con la API de Wompi
 
 // Renovar / borrar sitio (POST + CSRF + comprobación de propietario en la propia consulta).
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
